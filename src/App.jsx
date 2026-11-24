@@ -586,6 +586,9 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
             {isPackSub&&item.packSize&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>{item.packSize}</span>}
             {isPackSub&&item.containerType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>{item.containerType==="Can"?"🥫 Can":"🍶 Bottle"}</span>}
             {isWineSub&&item.wineType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>🍷 {item.wineType}</span>}
+            {item.subcategory==="newspapers"&&item.days&&(()=>{const today=item.days.includes(String(new Date().getDay()));return(
+              <span style={{background:today?"#4aaa4a22":T.badge,border:`1px solid ${today?"#4aaa4a66":T.badgeBorder}`,borderRadius:6,padding:"1px 7px",fontSize:11,fontWeight:600,color:today?"#5fc25f":T.badgeText}}>📅 {daysLabel(item.days)}{today&&" · today"}</span>
+            );})()}
             {hasInventory&&<span style={{background:isLowStock?"#e67e2222":oos?"#e74c3c22":T.badge,border:`1px solid ${isLowStock?"#e67e2244":oos?"#e74c3c44":T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:isLowStock?"#e67e22":oos?"#e74c3c":T.badgeText}}>📦 {item.inventory} left</span>}
             {item.gilliesRecommendation&&<span style={{background:"#f0c04022",border:"1px solid #f0c04055",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#f0c040",fontWeight:600}}>⭐ Gillie's Pick</span>}
             {item.location&&<span style={{fontSize:11,color:T.sub,display:"flex",alignItems:"center",gap:3}}>📍 {item.location}</span>}
@@ -783,7 +786,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
     setSearchResults(items.filter(i=>i.name.toLowerCase().includes(val.toLowerCase())).slice(0,10));
   }
   return(
-    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease",paddingTop:bannerOffset,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
+    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease",paddingTop:0,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -1015,7 +1018,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
     return()=>clearTimeout(t);
   },[scrollToItem]);
 
-  const emptyForm={name:"",subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",gilliesRecommendation:false,...emptyAlcoholForm(category.subcategories[0].key)};
+  const emptyForm={name:"",days:"",daysFromName:"",subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",gilliesRecommendation:false,...emptyAlcoholForm(category.subcategories[0].key)};
   const [form,setForm]=useState(emptyForm);
 
   function setSubcategory(sub){setForm(f=>({...f,subcategory:sub,...emptyAlcoholForm(sub)}));}
@@ -1042,7 +1045,10 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
   function openEdit(item){
     if(!requireManager())return;
     setEditItem(item);
-    setForm({name:item.name,subcategory:item.subcategory,price:String(item.price),location:item.location||"",
+    // older newspaper names carry the days, e.g. "Herald (Sunday)": move them into the Days field
+    const m=item.subcategory==="newspapers"&&!item.days&&item.name.match(/^(.*?)\s*\(([^)]*day[^)]*)\)\s*$/i);
+    const fromName=m?[...parseDays(m[2])].sort().join(""):"";
+    setForm({name:fromName?m[1]:item.name,days:item.days||fromName,daysFromName:fromName?m[2]:"",subcategory:item.subcategory,price:String(item.price),location:item.location||"",
       packSize:item.packSize||"6 Pack",containerType:item.containerType||"Can",
       deposit:item.deposit!=null?String(item.deposit):"",wineType:item.wineType||"Red",
       inventory:item.inventory!=null?String(item.inventory):"",
@@ -1074,6 +1080,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       mapZone:form.mapZone||null,
       expiryDate:form.expiryDate||"",
       gilliesRecommendation:form.gilliesRecommendation||false,
+      days:form.subcategory==="newspapers"?form.days||"":"",
     };
     const extra=PACK_SUBS.includes(form.subcategory)
       ?{packSize:form.packSize,containerType:form.containerType,deposit:form.deposit?parseFloat(form.deposit):0}
@@ -1087,6 +1094,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       gillies_recommendation:base.gilliesRecommendation||false,
       pack_size:extra.packSize||null, container_type:extra.containerType||null,
       deposit:extra.deposit??null, wine_type:extra.wineType||null,
+      // only newspapers send this column, so nothing else breaks before the column exists
+      ...(form.subcategory==="newspapers"?{days:form.days||null}:{}),
     };
     const action=editItem?"edited":"added";
     try{
@@ -1284,6 +1293,25 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 ))}
               </div>
             </div>
+            {/* Newspaper days */}
+            {form.subcategory==="newspapers"&&(
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Days <span style={{textTransform:"none",letterSpacing:0,opacity:0.8}}>· {daysLabel(form.days)||"which days is this price for?"}</span></div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:4}}>
+                  {["S","M","T","W","T","F","S"].map((l,d)=>{const on=(form.days||"").includes(String(d));return(
+                    <button key={d} aria-label={["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d]} aria-pressed={on}
+                      onClick={()=>setForm(f=>{const ds=new Set(f.days||"");ds.has(String(d))?ds.delete(String(d)):ds.add(String(d));return {...f,days:[...ds].sort().join("")};})}
+                      style={{minHeight:42,borderRadius:8,border:`1px solid ${on?accentColor:T.border}`,background:on?accentColor:"transparent",color:on?baseT.accentText:baseT.sub,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                  );})}
+                </div>
+                <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
+                  {[["Mon–Sat","123456"],["Sunday","0"],["Every day","0123456"]].map(([l,v])=>(
+                    <button key={l} onClick={()=>setForm(f=>({...f,days:v}))} style={{minHeight:32,padding:"4px 10px",borderRadius:16,border:`1px solid ${form.days===v?accentColor:T.border}`,background:"transparent",color:form.days===v?accentColor:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+                  ))}
+                </div>
+                {form.daysFromName&&<div style={{fontSize:11,color:baseT.sub,marginTop:6}}>Moved "({form.daysFromName})" out of the name. Save to keep it.</div>}
+              </div>
+            )}
             {/* Pack size */}
             {PACK_SUBS.includes(form.subcategory)&&<>
               <div style={{marginBottom:10}}>
@@ -1666,7 +1694,7 @@ function NotifBanner({notif,onExpire}){
   }
 
   return(
-    <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:col.bg,borderBottom:`2px solid ${col.border}`,zIndex:199,padding:"9px 16px",animation:"bannerSlide 0.35s cubic-bezier(0.34,1.1,0.64,1)"}}>
+    <div style={{background:col.bg,borderBottom:`2px solid ${col.border}`,padding:"9px 16px",animation:"bannerSlide 0.35s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={{width:8,height:8,borderRadius:"50%",background:col.dot,flexShrink:0,boxShadow:`0 0 8px ${col.dot}88`}}/>
         <span style={{fontSize:12,fontWeight:600,color:col.text,flex:1}}>{notif.message}</span>
@@ -2046,16 +2074,29 @@ function parseHours(startTime,endTime){
 // Store hours for a weekday (0=Sun) from the free-text config, e.g. {days:"Mon – Thu",hours:"8 AM – 6:30 PM"}.
 // Returns {open,close} in minutes, or null when closed / unreadable.
 const DAY_ABBR=["sun","mon","tue","wed","thu","fri","sat"];
+// Weekdays (0=Sun) named in text like "Mon – Thu", "Monday-Saturday", "Sat, Sun" or "Daily"
+function parseDays(text){
+  const t=(text||"").toLowerCase(), days=new Set();
+  if(/daily|every|all/.test(t))return new Set([0,1,2,3,4,5,6]);
+  for(const part of t.split(/[,&/]|\band\b/)){
+    const d=[...part.matchAll(/sun|mon|tue|wed|thu|fri|sat/g)].map(m=>DAY_ABBR.indexOf(m[0]));
+    if(d.length===2&&/[-–—]|to|thr/.test(part)){for(let x=d[0];;x=(x+1)%7){days.add(x);if(x===d[1])break;}}
+    else d.forEach(x=>days.add(x));
+  }
+  return days;
+}
+// "123456" -> "Mon–Sat", "0" -> "Sun", "56" -> "Fri–Sat", "6012345" -> "Every day"
+function daysLabel(str){
+  const s=new Set([...(str||"")].map(Number)), N=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  if(!s.size)return "";
+  if(s.size===7)return "Every day";
+  const starts=[...s].filter(d=>!s.has((d+6)%7));
+  if(starts.length===1){let e=starts[0];while(s.has((e+1)%7))e=(e+1)%7;return e===starts[0]?N[e]:`${N[starts[0]]}–${N[e]}`;}
+  return [...s].sort().map(d=>N[d]).join(", ");
+}
 function storeHoursFor(storeHours,dow){
   for(const row of storeHours||[]){
-    const days=(row.days||"").toLowerCase();
-    let hit=/daily|every|all/.test(days);
-    for(const part of days.split(/[,&/]|\band\b/)){
-      const t=[...part.matchAll(/sun|mon|tue|wed|thu|fri|sat/g)].map(m=>DAY_ABBR.indexOf(m[0]));
-      if(t.length===2&&/[-–—]|to|thr/.test(part)){for(let d=t[0];;d=(d+1)%7){if(d===dow)hit=true;if(d===t[1])break;}}
-      else if(t.includes(dow))hit=true;
-    }
-    if(!hit)continue;
+    if(!parseDays(row.days).has(dow))continue;
     const times=[...(row.hours||"").matchAll(/(\d{1,2})(?::(\d{2}))?\s*([ap])?/gi)].slice(0,2).map(m=>{
       let h=+m[1]%(m[3]?12:24);if(m[3]&&m[3].toLowerCase()==="p")h+=12;return h*60+(+m[2]||0);
     });
@@ -2106,6 +2147,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS,preset
   const [copyAsk,setCopyAsk]=useState(false);
   const [notice,setNotice]=useState("");
   const [openPay,setOpenPay]=useState(null);
+  useEffect(()=>{window.scrollTo(0,0);},[focusDay]);
 
   const bg=isDark?"#080b12":"#f0f0e8";
   const card=isDark?"#0f1525":"#ffffff";
@@ -3458,6 +3500,7 @@ export default function App(){
             packSize:row.pack_size||null, containerType:row.container_type||null,
             deposit:row.deposit!=null?parseFloat(row.deposit):null,
             wineType:row.wine_type||null,
+            days:row.days||"",
             gilliesRecommendation:row.gillies_recommendation||false,
           })));
         }
@@ -3538,7 +3581,15 @@ export default function App(){
 
   const activeCatTheme=selectedCategory?.theme||null;
   // How many px of fixed banners are showing at top
-  const bannerOffset=(managerDisabled&&!isDev?36:0)+(activeNotif&&!managerDisabled?36:0);
+  const bannerRef=useRef(null);
+  const [bannerOffset,setBannerOffset]=useState(0);
+  useEffect(()=>{
+    const el=bannerRef.current;if(!el||typeof ResizeObserver==="undefined")return;
+    const ro=new ResizeObserver(()=>setBannerOffset(el.offsetHeight));ro.observe(el);
+    return()=>ro.disconnect();
+  },[]);
+  // a new page or category always starts at the top (unless jumping to a searched item)
+  useEffect(()=>{if(!scrollToItem)window.scrollTo(0,0);},[page,selectedCategory?.key]);
   const bugsT={accent:"#7c83fd",accentText:"#fff",card:"#0f0f22",border:"#1e1e40",sub:"#505080",inputBg:"#0a0a18",inputBorder:"#1e1e40"};
 
   async function saveLayout(l){
@@ -3594,16 +3645,17 @@ export default function App(){
         </div>
       )}
 
-      {/* Manager disabled banner */}
-      {managerDisabled&&!isDev&&(
-        <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#e74c3c",zIndex:200,padding:"8px 16px",display:"flex",alignItems:"center",gap:8,animation:"bannerSlide 0.3s cubic-bezier(0.34,1.1,0.64,1)"}}>
-          <span style={{fontSize:14}}>🔒</span>
-          <span style={{fontSize:12,fontWeight:600,color:"#fff",flex:1}}>Manager permissions are temporarily disabled</span>
-        </div>
-      )}
-
-      {/* Active dev notification banner */}
-      {activeNotif&&!managerDisabled&&<NotifBanner notif={activeNotif} managerDisabled={managerDisabled} isDev={isDev} onExpire={()=>{setActiveNotif(null);saveActiveNotif(null);}}/>}
+      {/* Top banners — measured, and the spacer below pushes every page down by their real height */}
+      <div ref={bannerRef} style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,zIndex:200}}>
+        {managerDisabled&&!isDev&&(
+          <div style={{background:"#e74c3c",padding:"8px 16px",display:"flex",alignItems:"center",gap:8,animation:"bannerSlide 0.3s cubic-bezier(0.34,1.1,0.64,1)"}}>
+            <span style={{fontSize:14}}>🔒</span>
+            <span style={{fontSize:12,fontWeight:600,color:"#fff",flex:1}}>Manager permissions are temporarily disabled</span>
+          </div>
+        )}
+        {activeNotif&&!managerDisabled&&<NotifBanner notif={activeNotif} onExpire={()=>{setActiveNotif(null);saveActiveNotif(null);}}/>}
+      </div>
+      <div style={{height:bannerOffset}}/>
 
       {/* PIN Modal */}
       {showPinModal&&(
