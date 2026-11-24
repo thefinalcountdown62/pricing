@@ -318,6 +318,29 @@ function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly}){
   );
 }
 
+// Same color treatment as the 3D map (store3d.js brighten), so 2D reads as a top-down view of 3D
+function guessKind(key){
+  if(/back_room/.test(key))return"floor";
+  if(/rack_sep|separator/.test(key))return"separator";
+  if(/cooler|beer_case|beer_wine/.test(key))return"cooler";
+  if(/ice_cream|freezer/.test(key))return"freezer";
+  return"shelf";
+}
+function fixtureColor(hex,kind){
+  const toLin=c=>c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);
+  const toS=c=>c<=0.0031308?c*12.92:1.055*Math.pow(c,1/2.4)-0.055;
+  const n=parseInt((hex||"#1a2a14").slice(1),16);
+  let r=toLin((n>>16&255)/255),g=toLin((n>>8&255)/255),b=toLin((n&255)/255);
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,sat=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;sat=l>0.5?d/(2-mx-mn):d/(mx+mn);
+    h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}
+  sat=Math.min(1,sat*1.25+0.05);l=Math.max(l*1.9,kind==="separator"?0.14:0.3);
+  const q=l<0.5?l*(1+sat):l+sat-l*sat,p=2*l-q;
+  const f=t=>{t=(t+1)%1;return t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p;};
+  const hx=v=>Math.round(Math.min(1,Math.max(0,toS(v)))*255).toString(16).padStart(2,"0");
+  return "#"+hx(f(h+1/3))+hx(f(h))+hx(f(h-1/3));
+}
+
 function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
   const layout=useContext(LayoutCtx);
   const [hovered,setHovered]=useState(null);
@@ -340,38 +363,46 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
         ))}
       </div>
       {mode==="3d"?<FloorPlan3D layout={layout} pinZone={pinZone} onSelectZone={onSelectZone} accent={accent||"#f0c040"} readonly={readonly}/>:
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block"}}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block",background:"#07090f"}}>
         <defs><style>{`@keyframes floorFlash{0%{opacity:1}40%{opacity:0.35}100%{opacity:1}}`}</style></defs>
-        {/* Zones */}
-        {layout.zones.map(zone=>{
-          if(!zone.tappable) return <rect key={zone.key} x={px(zone.x)} y={py(zone.y)} width={pw(zone.w)} height={ph(zone.h)} fill="#0a0a0a" stroke="rgba(255,255,255,0.12)" strokeWidth={0.5}/>;
+        {/* Floor + 1 ft grid — same as the 3D floor */}
+        <rect x={0} y={0} width={W} height={H} fill="#2a2e36"/>
+        {Array.from({length:Math.floor(layout.size.w)},(_,i)=>i+1).map(i=><line key={"gx"+i} x1={i/layout.size.w*W} y1={0} x2={i/layout.size.w*W} y2={H} stroke="#363b46" strokeWidth={0.5}/>)}
+        {Array.from({length:Math.floor(layout.size.d)},(_,i)=>i+1).map(i=><line key={"gy"+i} x1={0} y1={i/layout.size.d*H} x2={W} y2={i/layout.size.d*H} stroke="#363b46" strokeWidth={0.5}/>)}
+        {/* Fixtures, flat areas first then shortest → tallest, like looking down on the 3D map */}
+        {[...layout.zones].sort((a,b)=>(+a.height||0)-(+b.height||0)).map(zone=>{
+          const kind=zone.kind||guessKind(zone.key);
+          const x=px(zone.x),y=py(zone.y),w=pw(zone.w),h=ph(zone.h);
+          const fill=fixtureColor(zone.color,kind);
+          if(!zone.tappable) return <rect key={zone.key} x={x} y={y} width={w} height={h} fill={fill} stroke="rgba(0,0,0,0.45)" strokeWidth={0.8}/>;
           const isPin=pinZone===zone.key;
           const isHov=hovered===zone.key;
-          const x=px(zone.x),y=py(zone.y),w=pw(zone.w),h=ph(zone.h);
           const cx=x+w/2,cy=y+h/2;
           return(
             <g key={zone.key} onClick={()=>!readonly&&onSelectZone&&onSelectZone(zone.key)} onMouseEnter={()=>setHovered(zone.key)} onMouseLeave={()=>setHovered(null)} style={{cursor:readonly?"default":"pointer"}}>
-              <rect x={x} y={y} width={w} height={h} rx={3}
-                fill={isPin?`${accent}35`:isHov&&!readonly?`${zone.color}ff`:`${zone.color}cc`}
-                stroke={isPin?accent:isHov&&!readonly?"rgba(255,255,255,0.35)":"rgba(255,255,255,0.1)"} strokeWidth={isPin?1.5:0.8}/>
-              {isPin&&<rect x={x} y={y} width={w} height={h} rx={3} fill="none" stroke={accent} strokeWidth={1.5} opacity={0.9} style={{animation:"floorFlash 0.35s ease"}} filter={`drop-shadow(0 0 5px ${accent})`}/>}
+              <rect x={x} y={y} width={w} height={h} fill={fill} fillOpacity={isHov&&!readonly&&!isPin?0.82:1}
+                stroke={isPin?accent:"rgba(0,0,0,0.45)"} strokeWidth={isPin?2:0.8}/>
+              {isPin&&<rect x={x} y={y} width={w} height={h} fill={accent} fillOpacity={0.28} stroke={accent} strokeWidth={2} style={{animation:"floorFlash 0.35s ease"}} filter={`drop-shadow(0 0 5px ${accent})`}/>}
               {zone.label&&(()=>{
                 const vertical=h>w*1.6&&w<zone.label.length*5;
                 const span=vertical?h:w,thick=vertical?w:h;
-                if(span<20||thick<8)return null;
-                return <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-                  transform={vertical?`rotate(-90 ${cx} ${cy})`:undefined}
-                  fontSize={Math.min(9,Math.max(5,Math.min(span/(zone.label.length*0.62),thick/2.2)))}
-                  fill={isPin?accent:"rgba(255,255,255,0.6)"} fontWeight={isPin?"700":"400"} fontFamily="inherit"
-                  style={{pointerEvents:"none",userSelect:"none"}}>{zone.label}</text>;
+                if(span<18||thick<7)return null;
+                const fs=Math.min(8,Math.max(4.5,Math.min((span-6)/(zone.label.length*0.6),thick/1.9)));
+                const pw2=zone.label.length*fs*0.58+fs*1.3,ph2=fs*1.55;
+                return(
+                  <g transform={vertical?`rotate(-90 ${cx} ${cy})`:undefined} style={{pointerEvents:"none",userSelect:"none"}}>
+                    <rect x={cx-pw2/2} y={cy-ph2/2} width={pw2} height={ph2} rx={ph2/2} fill={isPin?accent:"rgba(8,11,18,0.82)"}/>
+                    <text x={cx} y={cy+fs*0.05} textAnchor="middle" dominantBaseline="middle" fontSize={fs} fontWeight={600}
+                      fill={isPin?"#141005":"#e8ecf4"} fontFamily="Inter,system-ui,sans-serif">{zone.label}</text>
+                  </g>
+                );
               })()}
-              {isPin&&<circle cx={cx} cy={y+7} r={4} fill={accent} filter={`drop-shadow(0 0 6px ${accent})`}/>}
             </g>
           );
         })}
-        {/* Walls — drawn last so they sit over the fixtures */}
+        {/* Walls — same red and thickness as the 3D walls */}
         {layout.walls.map((wl,i)=>(
-          <line key={i} x1={px(wl.x1)} y1={py(wl.y1)} x2={px(wl.x2)} y2={py(wl.y2)} stroke="rgba(201,74,74,0.75)" strokeWidth={2.2} strokeLinecap="round" style={{pointerEvents:"none"}}/>
+          <line key={i} x1={px(wl.x1)} y1={py(wl.y1)} x2={px(wl.x2)} y2={py(wl.y2)} stroke="#b7413a" strokeWidth={Math.max(3,0.45/layout.size.w*W)} strokeLinecap="square" style={{pointerEvents:"none"}}/>
         ))}
       </svg>}
     </div>
