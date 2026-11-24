@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, createContext, useContext } from "react";
+import { useState, useRef, useEffect, useCallback, createContext, useContext, Component } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase ───────────────────────────────────────────────────────────────────
@@ -243,6 +243,52 @@ function LockIcon({unlocked,size=18}){
 }
 
 // ── Floor plan ────────────────────────────────────────────────────────────────
+// ── Shared page header: store name, page title, one optional action, optional row underneath ──
+function PageHeader({title,icon,accent="#f0c040",isDark=true,action,children}){
+  const border=isDark?"#1e2a40":"#d0d0c0",sub=isDark?"#3a4a60":"#909080";
+  return(
+    <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"18px 16px 14px"}}>
+      <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:10,minHeight:42}}>
+        <div style={{display:"flex",alignItems:"center",gap:9,minWidth:0}}>
+          {icon&&<span style={{fontSize:22,lineHeight:1}}>{icon}</span>}
+          <span style={{fontSize:24,fontWeight:700,color:accent,lineHeight:1.15,letterSpacing:"-0.01em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{title}</span>
+        </div>
+        {action}
+      </div>
+      {children&&<div style={{marginTop:12}}>{children}</div>}
+    </div>
+  );
+}
+function HeaderAction({on,onClick,accent,isDark,ink="#fff",children,offLabel}){
+  const border=isDark?"#1e2a40":"#d0d0c0",sub=isDark?"#7a879e":"#707060";
+  return(
+    <button onClick={onClick} style={{flexShrink:0,minHeight:40,padding:"8px 16px",background:on?"transparent":accent,border:`1px solid ${on?border:accent}`,borderRadius:20,color:on?sub:ink,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",whiteSpace:"nowrap"}}>
+      {on?(offLabel||"✕ Cancel"):children}
+    </button>
+  );
+}
+
+// ── Page safety net: a crash on one page shows a message instead of blanking the whole app ──
+class PageErrorBoundary extends Component {
+  constructor(p){super(p);this.state={err:null};}
+  static getDerivedStateFromError(err){return{err};}
+  componentDidCatch(err,info){console.error("Page crashed:",err,info?.componentStack);}
+  render(){
+    if(!this.state.err)return this.props.children;
+    const dark=this.props.isDark!==false;
+    return(
+      <div style={{minHeight:"70vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:12,padding:"40px 24px",textAlign:"center",fontFamily:"'Georgia','Times New Roman',serif",color:dark?"#f0f0f0":"#1a1a1a"}}>
+        <div style={{fontSize:40}}>⚠️</div>
+        <div style={{fontSize:18,fontWeight:700}}>Something went wrong on this page</div>
+        <div style={{fontSize:13,color:dark?"#7a879e":"#707060",maxWidth:300,lineHeight:1.5}}>The rest of the app still works. Try again, or switch to another tab.</div>
+        <button onClick={()=>this.setState({err:null})} style={{marginTop:6,minHeight:44,padding:"10px 22px",background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Try again</button>
+        <div style={{fontSize:10,color:dark?"#3a4a60":"#a0a090",fontFamily:"'Courier New',monospace",maxWidth:320,wordBreak:"break-word"}}>{String(this.state.err?.message||this.state.err)}</div>
+      </div>
+    );
+  }
+}
+
 // ── STORE LAYOUT (paste a Store Builder export over this block) ──────────────
 const STORE_SIZE = {"w":40,"d":33};
 const FLOOR_ZONES = [
@@ -319,6 +365,12 @@ function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly}){
 }
 
 // Same color treatment as the 3D map (store3d.js brighten), so 2D reads as a top-down view of 3D
+// Dates were once saved as "4/16/2026" text; new ones are ISO timestamps. Show both the same way.
+function fmtDate(v){
+  if(!v)return"";
+  const d=new Date(v);
+  return isNaN(d)?String(v):d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+}
 function guessKind(key){
   if(/back_room/.test(key))return"floor";
   if(/rack_sep|separator/.test(key))return"separator";
@@ -383,20 +435,7 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
               <rect x={x} y={y} width={w} height={h} fill={fill} fillOpacity={isHov&&!readonly&&!isPin?0.82:1}
                 stroke={isPin?accent:"rgba(0,0,0,0.45)"} strokeWidth={isPin?2:0.8}/>
               {isPin&&<rect x={x} y={y} width={w} height={h} fill={accent} fillOpacity={0.28} stroke={accent} strokeWidth={2} style={{animation:"floorFlash 0.35s ease"}} filter={`drop-shadow(0 0 5px ${accent})`}/>}
-              {zone.label&&(()=>{
-                const vertical=h>w*1.6&&w<zone.label.length*5;
-                const span=vertical?h:w,thick=vertical?w:h;
-                if(span<18||thick<7)return null;
-                const fs=Math.min(8,Math.max(4.5,Math.min((span-6)/(zone.label.length*0.6),thick/1.9)));
-                const pw2=zone.label.length*fs*0.58+fs*1.3,ph2=fs*1.55;
-                return(
-                  <g transform={vertical?`rotate(-90 ${cx} ${cy})`:undefined} style={{pointerEvents:"none",userSelect:"none"}}>
-                    <rect x={cx-pw2/2} y={cy-ph2/2} width={pw2} height={ph2} rx={ph2/2} fill={isPin?accent:"rgba(8,11,18,0.82)"}/>
-                    <text x={cx} y={cy+fs*0.05} textAnchor="middle" dominantBaseline="middle" fontSize={fs} fontWeight={600}
-                      fill={isPin?"#141005":"#e8ecf4"} fontFamily="Inter,system-ui,sans-serif">{zone.label}</text>
-                  </g>
-                );
-              })()}
+
             </g>
           );
         })}
@@ -404,6 +443,31 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
         {layout.walls.map((wl,i)=>(
           <line key={i} x1={px(wl.x1)} y1={py(wl.y1)} x2={px(wl.x2)} y2={py(wl.y2)} stroke="#b7413a" strokeWidth={Math.max(3,0.45/layout.size.w*W)} strokeLinecap="square" style={{pointerEvents:"none"}}/>
         ))}
+        {/* Labels — one readable size, placed biggest-first so they never overlap; the pinned fixture always gets one */}
+        {(()=>{
+          const placed=[],out=[];
+          const cand=layout.zones.filter(z=>z.label&&z.tappable).map(z=>({z,x:px(z.x),y:py(z.y),w:pw(z.w),h:ph(z.h)}))
+            .sort((a,b)=>(b.z.key===pinZone)-(a.z.key===pinZone)||(b.w*b.h)-(a.w*a.h));
+          for(const c of cand){
+            const pin=c.z.key===pinZone,fs=pin?15:12,lw=c.z.label.length*fs*0.56+fs*1.1,lh=fs*1.5;
+            const vertical=!pin&&c.h>c.w*1.6&&lw>c.w+4;
+            const bw=vertical?lh:lw,bh=vertical?lw:lh;
+            const cx=c.x+c.w/2,cy=pin&&c.h<lh*1.2?c.y-lh*0.7:c.y+c.h/2;
+            const box={x:Math.max(1,Math.min(W-bw-1,cx-bw/2)),y:Math.max(1,Math.min(H-bh-1,cy-bh/2)),w:bw,h:bh};
+            const fitsOwn=pin||(vertical?c.h>=lw*0.85:c.w>=lw*0.85||c.h>=lh*2.2);
+            if(!fitsOwn||placed.some(p=>box.x<p.x+p.w&&box.x+box.w>p.x&&box.y<p.y+p.h&&box.y+box.h>p.y))continue;
+            placed.push(box);
+            const tx=box.x+bw/2,ty=box.y+bh/2;
+            out.push(
+              <g key={"lbl"+c.z.key} transform={vertical?`rotate(-90 ${tx} ${ty})`:undefined} style={{pointerEvents:"none",userSelect:"none"}}>
+                <rect x={tx-lw/2} y={ty-lh/2} width={lw} height={lh} rx={lh/2} fill={pin?accent:"rgba(8,11,18,0.86)"}/>
+                <text x={tx} y={ty+fs*0.05} textAnchor="middle" dominantBaseline="middle" fontSize={fs} fontWeight={700}
+                  fill={pin?"#141005":"#eef1f6"} fontFamily="Inter,system-ui,sans-serif">{c.z.label}</text>
+              </g>
+            );
+          }
+          return out;
+        })()}
       </svg>}
     </div>
   );
@@ -429,7 +493,7 @@ function SwipeRow({onSwipeLeft,children,accentColor}){
 }
 
 // ── ItemCard ──────────────────────────────────────────────────────────────────
-function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
+function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=false}){
   const layout=useContext(LayoutCtx);
   const [expanded,setExpanded]=useState(forceExpand);
   const [pressed,setPressed]=useState(false);
@@ -519,9 +583,9 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
         <div style={{flex:1}}>
           <div style={{fontSize:15,fontWeight:600,color:oos?T.sub:"#f0f0f0",marginBottom:6,textDecoration:oos?"line-through":"none"}}>{item.name}</div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
-            {isPackSub&&item.packSize&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>{item.packSize}</span>}
-            {isPackSub&&item.containerType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>{item.containerType==="Can"?"🥫 Can":"🍶 Bottle"}</span>}
-            {isWineSub&&item.wineType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>🍷 {item.wineType}</span>}
+            {isPackSub&&item.packSize&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>{item.packSize}</span>}
+            {isPackSub&&item.containerType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>{item.containerType==="Can"?"🥫 Can":"🍶 Bottle"}</span>}
+            {isWineSub&&item.wineType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>🍷 {item.wineType}</span>}
             {hasInventory&&<span style={{background:isLowStock?"#e67e2222":oos?"#e74c3c22":T.badge,border:`1px solid ${isLowStock?"#e67e2244":oos?"#e74c3c44":T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:isLowStock?"#e67e22":oos?"#e74c3c":T.badgeText}}>📦 {item.inventory} left</span>}
             {item.gilliesRecommendation&&<span style={{background:"#f0c04022",border:"1px solid #f0c04055",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#f0c040",fontWeight:600}}>⭐ Gillie's Pick</span>}
             {item.location&&<span style={{fontSize:11,color:T.sub,display:"flex",alignItems:"center",gap:3}}>📍 {item.location}</span>}
@@ -534,15 +598,15 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
           </div>
         </div>
         <div style={{textAlign:"right",paddingLeft:12,flexShrink:0}}>
-          <div style={{fontSize:20,fontWeight:700,color:oos?T.sub:T.accent}}>${item.price.toFixed(2)}</div>
-          {item.deposit>0&&<div style={{fontSize:11,color:T.badgeText,marginTop:1}}>+${item.deposit.toFixed(2)} dep.</div>}
+          <div style={{fontSize:25,fontWeight:800,lineHeight:1.05,color:oos?T.sub:T.accent,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.01em"}}>${item.price.toFixed(2)}</div>
+          {item.deposit>0&&<div style={{fontSize:12,fontWeight:700,color:oos?T.sub:"#e8e8e8",marginTop:3,fontVariantNumeric:"tabular-nums"}}>${total.toFixed(2)} <span style={{fontSize:10,fontWeight:400,color:T.sub}}>w/ dep.</span></div>}
         </div>
       </div>
       {/* Animated expand section */}
       <div style={{display:"grid",gridTemplateRows:expanded?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
         <div style={{overflow:"hidden"}}>
           <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,position:"relative",zIndex:2,animation:"pageEnter 0.22s cubic-bezier(0.34,1.1,0.64,1)"}} onClick={e=>e.stopPropagation()}>
-            {item.deposit>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:13,color:T.sub}}>Total w/ deposit:</span><span style={{fontSize:14,fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
+            {item.deposit>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10,fontSize:12,color:T.sub}}><span>Price ${item.price.toFixed(2)} + deposit ${item.deposit.toFixed(2)}</span><span style={{fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
             {item.notes&&<div style={{fontSize:12,color:T.sub,marginBottom:10,padding:"8px 10px",background:T.badge,borderRadius:8,border:`1px solid ${T.badgeBorder}`,lineHeight:1.5}}>📝 {item.notes}</div>}
             {item.expiryDate&&(()=>{
               const days=Math.ceil((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
@@ -559,7 +623,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
             {/* Map location — starts minimized */}
             {item.mapZone&&(
               <div style={{marginBottom:10}}>
-                <button onClick={e=>{e.stopPropagation();setMapMini(m=>!m);}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",marginBottom:mapMini?0:6}}>
+                <button onClick={e=>{e.stopPropagation();setMapMini(m=>!m);}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,padding:"11px 12px",minHeight:44,cursor:"pointer",fontFamily:"inherit",marginBottom:mapMini?0:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:7}}>
                     <span style={{fontSize:12}}>📍</span>
                     <span style={{fontSize:12,fontWeight:600,color:T.accent}}>{zoneName}</span>
@@ -572,22 +636,25 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
                 <div style={{display:"grid",gridTemplateRows:mapMini?"0fr":"1fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
                   <div style={{overflow:"hidden"}}>
                     <div style={{paddingTop:6}}>
-                      <FloorPlan pinZone={item.mapZone} accent={T.accent} readonly={true}/>
-                      <div style={{display:"flex",justifyContent:"flex-end",marginTop:5}}>
-                        <button onClick={e=>{e.stopPropagation();setMapExpanded(true);}} style={{fontSize:10,color:T.accent,background:"transparent",border:`1px solid ${T.accent}44`,borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:600,letterSpacing:"0.04em"}}>⤢ Full Screen</button>
+                      {/* Only mount the map while it's open — every card used to load its own (40 3D engines per page) */}
+                      {expanded&&!mapMini&&!mapExpanded&&<FloorPlan pinZone={item.mapZone} accent={T.accent} readonly={true}/>}
+                      <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}>
+                        <button onClick={e=>{e.stopPropagation();setMapExpanded(true);}} style={{fontSize:11,color:T.accent,background:"transparent",border:`1px solid ${T.accent}44`,borderRadius:8,padding:"7px 12px",minHeight:34,cursor:"pointer",fontFamily:"inherit",fontWeight:600,letterSpacing:"0.04em"}}>⤢ Full Screen</button>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             )}
-            <button onClick={onToggle} style={{width:"100%",marginBottom:8,padding:"9px",background:oos?"#2e1a1a":"transparent",border:`1px solid ${oos?"#5a2a2a":T.border}`,borderRadius:8,color:oos?"#e07070":T.sub,fontSize:13,cursor:"pointer",fontFamily:"inherit",transition:"background 0.2s"}}>
-              {oos?"✅ Mark In Stock":"🚫 Mark Out of Stock"}
-            </button>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={e=>{e.stopPropagation();onEdit(item);}} style={{flex:1,padding:"9px",background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,color:T.badgeText,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>✏️ Edit</button>
-              <button onClick={onDelete} style={{flex:1,padding:"9px",background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:8,color:"#e07070",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>
-            </div>
+            {canEdit&&<>
+              <button onClick={onToggle} style={{width:"100%",marginBottom:8,padding:"12px",minHeight:44,background:oos?"#2e1a1a":"transparent",border:`1px solid ${oos?"#5a2a2a":T.border}`,borderRadius:10,color:oos?"#e07070":T.sub,fontSize:13,cursor:"pointer",fontFamily:"inherit",transition:"background 0.2s"}}>
+                {oos?"✅ Mark In Stock":"🚫 Mark Out of Stock"}
+              </button>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={e=>{e.stopPropagation();onEdit(item);}} style={{flex:1,padding:"12px",minHeight:44,background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:10,color:T.badgeText,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>✏️ Edit</button>
+                <button onClick={onDelete} style={{flex:1,padding:"12px",minHeight:44,background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:10,color:"#e07070",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>
+              </div>
+            </>}
           </div>
         </div>
       </div>
@@ -621,7 +688,7 @@ function BugCard({bug,T,canDelete,onDelete}){
         <div style={{overflow:"hidden"}}>
           <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border||DT.cardBorder}`}} onClick={e=>e.stopPropagation()}>
             <p style={{fontSize:13,color:T.text||DT.text,lineHeight:1.6,marginBottom:8}}>{bug.description}</p>
-            {bug.created_at&&<div style={{fontSize:11,color:T.sub||DT.subText,marginBottom:canDelete?10:0}}>Reported: {bug.created_at}</div>}
+            {bug.created_at&&<div style={{fontSize:11,color:T.sub||DT.subText,marginBottom:canDelete?10:0}}>Reported: {fmtDate(bug.created_at)}</div>}
             {canDelete&&<button onClick={onDelete} style={{width:"100%",padding:"9px",background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:8,color:"#e07070",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>}
           </div>
         </div>
@@ -765,43 +832,48 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
         }
       `}</style>
 
-      {/* Header */}
-      <div style={{padding:"24px 16px 16px",background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:isDark?"1px solid #141c2c":"1px solid #d8d8c8"}}>
-        <div onClick={()=>{
-          tapCountRef.current+=1;
-          clearTimeout(tapTimerRef.current);
-          if(tapCountRef.current>=3){tapCountRef.current=0;onDevUnlock&&onDevUnlock();return;}
-          tapTimerRef.current=setTimeout(()=>{tapCountRef.current=0;},600);
-        }} style={{fontSize:10,color:isDark?"#3a4a60":"#909080",letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4,cursor:"default",userSelect:"none"}}>{"Gil's Grocery"}</div>
-        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:2}}>
-          <div style={{fontSize:26,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a"}}>Price Manager</div>
-          <div style={{display:"flex",gap:8,alignItems:"center"}}>
-            {/* Theme toggle */}
-            <button onClick={onToggleTheme} className="icon-btn" style={{background:isDark?"#1a1f2e":"#e0e0d0",border:isDark?"1px solid #2a3050":"1px solid #c8c8b8",borderRadius:8,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",position:"relative"}}>
-              <span style={{position:"absolute",fontSize:16,transition:"transform 0.4s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease",transform:isDark?"scale(1) rotate(0deg)":"scale(0) rotate(180deg)",opacity:isDark?1:0}}>☀️</span>
-              <span style={{position:"absolute",fontSize:16,transition:"transform 0.4s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease",transform:isDark?"scale(0) rotate(-180deg)":"scale(1) rotate(0deg)",opacity:isDark?0:1}}>🌙</span>
-            </button>
-            {/* Import/export */}
-            <div style={{position:"relative"}}>
-              <button onClick={()=>setShowExport(v=>!v)} className="icon-btn" style={{background:isDark?"#1a1f2e":"#e0e0d0",border:isDark?"1px solid #2a3050":"1px solid #c8c8b8",borderRadius:8,width:34,height:34,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>⇅</button>
-              {showExport&&(
-                <div style={{position:"absolute",right:0,top:40,background:isDark?"#1a1f2e":"#fff",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:12,padding:6,zIndex:300,minWidth:200,boxShadow:"0 6px 24px rgba(0,0,0,0.35)",animation:"slideDown 0.18s ease"}}>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:isDark?"#4a5568":"#909080",padding:"6px 12px 4px"}}>Export</div>
-                  <button onClick={downloadCSV} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📥 Download All CSV</button>
-                  <div style={{height:1,background:isDark?"#2a3050":"#e0e0d0",margin:"4px 0"}}/>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:isDark?"#4a5568":"#909080",padding:"4px 12px"}}>Import</div>
-                  <button onClick={()=>fileInputRef.current?.click()} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📂 Import from CSV</button>
-                  <button onClick={()=>{setShowPasteModal(true);setShowExport(false);}} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📋 Paste Data</button>
-                  <div style={{height:1,background:isDark?"#2a3050":"#e0e0d0",margin:"4px 0"}}/>
-                  <button onClick={()=>{setShowDataModal(true);setShowExport(false);}} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📤 Show my data</button>
+      {/* Header — title gets its own line; theme, import/export and sign-in live in one menu */}
+      <div style={{padding:"18px 16px 14px",background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:isDark?"1px solid #141c2c":"1px solid #d8d8c8",position:"relative",zIndex:20}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+          <div onClick={()=>{
+            tapCountRef.current+=1;
+            clearTimeout(tapTimerRef.current);
+            if(tapCountRef.current>=3){tapCountRef.current=0;onDevUnlock&&onDevUnlock();return;}
+            tapTimerRef.current=setTimeout(()=>{tapCountRef.current=0;},600);
+          }} style={{fontSize:10,color:isDark?"#3a4a60":"#909080",letterSpacing:"0.2em",textTransform:"uppercase",cursor:"default",userSelect:"none",padding:"6px 0"}}>{"Gil's Grocery"}</div>
+          <div style={{display:"flex",alignItems:"center",gap:8,position:"relative"}}>
+            {isManager&&<span style={{fontSize:11,fontWeight:700,padding:"5px 10px",borderRadius:999,background:isDev?`${DT.accent}1c`:"#f0c04022",border:`1px solid ${isDev?DT.accent+"55":"#f0c04055"}`,color:isDev?DT.accent:(isDark?"#f0c040":"#9a7200"),letterSpacing:"0.03em",animation:"popIn 0.3s ease"}}>🔓 {isDev?"Developer":"Manager"}</span>}
+            <button aria-label="Menu" onClick={e=>{e.stopPropagation();setShowExport(v=>!v);}} className="icon-btn"
+              style={{width:42,height:42,borderRadius:12,background:showExport?(isDark?"#252c40":"#dcdccc"):(isDark?"#1a1f2e":"#e6e6d8"),border:isDark?"1px solid #2a3050":"1px solid #c8c8b8",color:isDark?"#e0e4ee":"#2a2a22",fontSize:20,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",transition:"background 0.15s"}}>⋯</button>
+            {showExport&&<div onClick={()=>setShowExport(false)} style={{position:"fixed",inset:0,zIndex:250}}/>}
+            {showExport&&(()=>{
+              const txt=isDark?"#f0f0f0":"#1a1a1a",lab=isDark?"#4a5568":"#909080",line=isDark?"#2a3050":"#e0e0d0";
+              const item=(icon,label,onClick,color)=>(
+                <button onClick={()=>{setShowExport(false);onClick();}} className="export-item"
+                  style={{display:"flex",alignItems:"center",gap:10,width:"100%",minHeight:44,padding:"10px 12px",background:"none",border:"none",color:color||txt,fontSize:14,fontFamily:"inherit",cursor:"pointer",borderRadius:9,textAlign:"left"}}>
+                  <span style={{width:20,textAlign:"center"}}>{icon}</span>{label}
+                </button>
+              );
+              const head=t=><div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:lab,padding:"8px 12px 2px"}}>{t}</div>;
+              return(
+                <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:50,background:isDark?"#141a28":"#fff",border:`1px solid ${line}`,borderRadius:14,padding:6,zIndex:300,width:236,boxShadow:"0 10px 32px rgba(0,0,0,0.4)",animation:"slideDown 0.18s ease"}}>
+                  {item(isDark?"☀️":"🌙",isDark?"Light mode":"Dark mode",onToggleTheme)}
+                  <div style={{height:1,background:line,margin:"4px 0"}}/>
+                  {head("Export")}
+                  {item("📥","Download all as CSV",downloadCSV)}
+                  {item("📤","Show my data",()=>setShowDataModal(true))}
+                  {head("Import")}
+                  {item("📂","Import from CSV",()=>fileInputRef.current?.click())}
+                  {item("📋","Paste data",()=>setShowPasteModal(true))}
+                  <div style={{height:1,background:line,margin:"4px 0"}}/>
+                  {isManager?item("🔒","Sign out",onSignOut,"#e07070"):item("🔑","Manager sign in",onSignIn,isDark?"#f0c040":"#9a7200")}
                 </div>
-              )}
-              <input ref={fileInputRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
-            </div>
-            {/* Manager sign in/out — smooth both ways */}
-            <ManagerButton isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={onSignIn} onSignOut={onSignOut}/>
+              );
+            })()}
+            <input ref={fileInputRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
           </div>
         </div>
+        <div style={{fontSize:28,fontWeight:700,lineHeight:1.15,color:isDark?"#f0f0f0":"#1a1a1a",margin:"2px 0 4px",letterSpacing:"-0.01em"}}>Price Manager</div>
         <div style={{fontSize:12,color:isDark?"#3a4a60":"#909080",height:18,overflow:"hidden",position:"relative"}}>
           <span style={{position:"absolute",left:0,top:0,transition:"opacity 0.3s ease",opacity:showWelcome?0:1}}>
             {items.length} items · {CATEGORIES.length} categories
@@ -850,11 +922,11 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
           const oos=items.filter(i=>i.category===cat.key&&i.outOfStock).length;
           return(
             <div key={cat.key} onClick={()=>onSelectCategory(cat)} className="cat-card cat-tap"
-              style={{background:`linear-gradient(135deg,${cat.theme.card} 0%,${cat.theme.bg} 100%)`,border:`1px solid ${cat.theme.border}`,borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${idx*0.07}s both`}}>
+              style={{background:isDark?`linear-gradient(135deg,${cat.theme.card} 0%,${cat.theme.bg} 100%)`:`linear-gradient(135deg,#ffffff 0%,${cat.theme.accent}14 100%)`,border:`1px solid ${isDark?cat.theme.border:cat.theme.accent+"40"}`,boxShadow:isDark?"none":"0 1px 3px rgba(60,50,20,0.08)",borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${idx*0.07}s both`}}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:cat.theme.accent,borderRadius:"16px 16px 0 0",opacity:0.9}}/>
               <div style={{fontSize:26,marginBottom:8,animation:`fadeUp 0.35s ease ${idx*0.07+0.1}s both`}}>{cat.icon}</div>
-              <div style={{fontSize:14,fontWeight:700,color:"#f0f0f0",marginBottom:2}}>{cat.name}</div>
-              <div style={{fontSize:11,color:cat.theme.sub}}>{count} item{count!==1?"s":""}{oos>0&&<span style={{color:"#e74c3c"}}> · {oos} out</span>}</div>
+              <div style={{fontSize:14,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a14",marginBottom:2}}>{cat.name}</div>
+              <div style={{fontSize:11,color:isDark?cat.theme.sub:"#6e6a5c"}}>{count} item{count!==1?"s":""}{oos>0&&<span style={{color:"#e74c3c"}}> · {oos} out</span>}</div>
               <div style={{position:"absolute",bottom:-16,right:-16,width:50,height:50,borderRadius:"50%",background:cat.theme.accent,opacity:0.08,transition:"transform 0.3s ease",}}/>
             </div>
           );
@@ -865,13 +937,13 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
           return(
             <div onClick={()=>onSelectCategory({key:"recommendations",name:"Gillie's Recommendations",icon:"⭐",theme:{bg:"#120e00",header:"linear-gradient(160deg,#1e1800,#120e00)",accent:"#f0c040",accentText:"#0f1117",card:"#1a1400",border:"#3a2e00",sub:"#806040",badge:"#1e1800",badgeBorder:"#3a2e00",badgeText:"#c0a040",oosOverlay:"rgba(18,14,0,0.6)"},subcategories:[]})}
               className="cat-card cat-tap"
-              style={{gridColumn:"1 / -1",background:"linear-gradient(135deg,#1a1400 0%,#120e00 100%)",border:"1px solid #3a2e00",borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${CATEGORIES.length*0.07}s both`}}>
+              style={{gridColumn:"1 / -1",background:isDark?"linear-gradient(135deg,#1a1400 0%,#120e00 100%)":"linear-gradient(135deg,#fffaf0 0%,#fbefc8 100%)",border:`1px solid ${isDark?"#3a2e00":"#ecd48a"}`,borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${CATEGORIES.length*0.07}s both`}}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"#f0c040",borderRadius:"16px 16px 0 0",opacity:0.9}}/>
               <div style={{display:"flex",alignItems:"center",gap:14}}>
                 <div style={{fontSize:36}}>⭐</div>
                 <div>
-                  <div style={{fontSize:16,fontWeight:700,color:"#f0c040",marginBottom:2}}>Gillie's Recommendations</div>
-                  <div style={{fontSize:12,color:"#806040"}}>{recCount} item{recCount!==1?"s":""} personally recommended by the owner</div>
+                  <div style={{fontSize:16,fontWeight:700,color:isDark?"#f0c040":"#9a7200",marginBottom:2}}>Gillie's Recommendations</div>
+                  <div style={{fontSize:12,color:isDark?"#806040":"#8a7650"}}>{recCount} item{recCount!==1?"s":""} personally recommended by the owner</div>
                 </div>
               </div>
               <div style={{position:"absolute",bottom:-20,right:-20,width:70,height:70,borderRadius:"50%",background:"#f0c040",opacity:0.06}}/>
@@ -1315,11 +1387,11 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
               </button>
               <div style={{display:"grid",gridTemplateRows:mapOpen?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
                 <div style={{overflow:"hidden"}}>
-                  <FloorPlan pinZone={form.mapZone} onSelectZone={z=>{
+                  {mapOpen&&<FloorPlan pinZone={form.mapZone} onSelectZone={z=>{
                     const newZone=form.mapZone===z?null:z;
                     const zoneLabel=newZone?layout.zones.find(fz=>fz.key===newZone)?.label||"":"";
                     setForm(f=>({...f,mapZone:newZone,location:zoneLabel||f.location}));
-                  }} accent={accentColor}/>
+                  }} accent={accentColor}/>}
                   {form.mapZone&&(
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6}}>
                       <span style={{fontSize:11,color:accentColor,fontWeight:600}}>📍 {layout.zones.find(z=>z.key===form.mapZone)?.label}</span>
@@ -1441,7 +1513,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                   transition:"box-shadow 0.4s ease",
                 }}>
                 <SwipeRow onSwipeLeft={()=>openEdit(item)} accentColor={accentColor}>
-                  <ItemCard item={item} T={T} onEdit={()=>openEdit(item)}
+                  <ItemCard item={item} T={T} canEdit={isManager} onEdit={()=>openEdit(item)}
                     forceExpand={isHighlighted}
                     onDelete={()=>{if(!requireManager())return;setConfirmDelete({id:item.id,name:item.name});}}
                     onToggle={()=>{if(!requireManager())return;const newOos=!item.outOfStock;sb.from('items').update({out_of_stock:newOos}).eq('id',item.id);setItems(prev=>prev.map(i=>i.id===item.id?{...i,outOfStock:newOos}:i));}}/>
@@ -1483,19 +1555,21 @@ function BugsPage({T,isManager,onRequireManager,managerDisabled=false}){
   const [form,setForm]=useState({title:"",description:"",severity:"Medium"});
   const inp={width:"100%",background:T.inputBg||"#0f1117",border:`1px solid ${T.inputBorder||"#2a3050"}`,borderRadius:10,padding:"10px 12px",color:"#f0f0f0",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"};
   useEffect(()=>{
-    sb.from("known_bugs").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
+    sb.from("known_bugs").select("*").order("id",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
   },[]);
   return(
-    <div style={{padding:"20px 14px",fontFamily:"'Georgia','Times New Roman',serif"}}>
-      <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>🐛 Known Bugs</div>
+    <div style={{fontFamily:"'Georgia','Times New Roman',serif"}}>
+    <PageHeader title="Bug Reports" icon="🐛" accent={T.accent} isDark={true}/>
+    <div style={{padding:"16px 16px 20px"}}>
+      <div style={{fontSize:17,fontWeight:700,color:"#f0f0f0",marginBottom:4}}>Known bugs</div>
       <div style={{fontSize:12,color:T.sub||T.subText,marginBottom:16}}>Issues the team is aware of</div>
       {knownBugs.length===0&&<div style={{textAlign:"center",padding:"24px",background:T.card||T.cardBg,borderRadius:12,border:`1px solid ${T.border||T.cardBorder}`,marginBottom:20}}><div style={{fontSize:28,marginBottom:6}}>✅</div><div style={{fontSize:14,fontWeight:600,color:"#f0f0f0",marginBottom:2}}>No known bugs!</div><div style={{fontSize:12,color:T.sub||T.subText}}>Found something? Report it below.</div></div>}
       {knownBugs.map(bug=><BugCard key={bug.id} bug={bug} T={{card:T.card||T.cardBg,border:T.border||T.cardBorder,text:"#f0f0f0",sub:T.sub||T.subText}} canDelete={false}/>)}
       <div style={{height:1,background:T.border||T.cardBorder,margin:"24px 0"}}/>
-      <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>📝 Report a Bug</div>
+      <div style={{fontSize:17,fontWeight:700,color:"#f0f0f0",marginBottom:4}}>Report a bug</div>
       <div style={{fontSize:12,color:T.sub||T.subText,marginBottom:16}}>Requires manager PIN</div>
       {!showForm?(
-        <button onClick={()=>{if(!isManager||managerDisabled){onRequireManager();return;}setShowForm(true);}} style={{width:"100%",padding:"13px",background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Submit Bug Report</button>
+        <button onClick={()=>{if(!isManager||managerDisabled){onRequireManager();return;}setShowForm(true);}} style={{width:"100%",minHeight:48,padding:"13px",background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Submit Bug Report</button>
       ):(
         <div style={{background:T.card||T.cardBg,border:`1px solid ${T.border||T.cardBorder}`,borderRadius:14,padding:18}}>
           <div style={{marginBottom:10}}><div style={{fontSize:11,color:T.sub||T.subText,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Title</div><input style={inp} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Short description"/></div>
@@ -1507,11 +1581,12 @@ function BugsPage({T,isManager,onRequireManager,managerDisabled=false}){
           </div>
           <div style={{display:"flex",gap:10}}>
             <button onClick={()=>setShowForm(false)} style={{flex:1,padding:12,background:"transparent",border:`1px solid ${T.border||T.cardBorder}`,borderRadius:10,color:T.sub||T.subText,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            <button onClick={async()=>{if(!form.title||!form.description)return;await sb.from("bug_reports").insert({title:form.title,description:form.description,severity:form.severity,status:"Open",created_at:new Date().toLocaleDateString()});setForm({title:"",description:"",severity:"Medium"});setShowForm(false);alert("Bug report submitted!");}} style={{flex:2,padding:12,background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Submit</button>
+            <button onClick={async()=>{if(!form.title||!form.description)return;await sb.from("bug_reports").insert({title:form.title,description:form.description,severity:form.severity,status:"Open",created_at:new Date().toISOString()});setForm({title:"",description:"",severity:"Medium"});setShowForm(false);alert("Bug report submitted!");}} style={{flex:2,padding:12,background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Submit</button>
           </div>
         </div>
       )}
       {reports.length>0&&<><div style={{height:1,background:T.border||T.cardBorder,margin:"24px 0"}}/><div style={{fontSize:14,fontWeight:700,color:"#f0f0f0",marginBottom:12}}>Reports ({reports.length})</div>{reports.map(r=><BugCard key={r.id} bug={r} T={{card:T.card||T.cardBg,border:T.border||T.cardBorder,text:"#f0f0f0",sub:T.sub||T.subText}} canDelete={false}/>)}</>}
+    </div>
     </div>
   );
 }
@@ -1586,8 +1661,8 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
 
   // Load known bugs, reports from Supabase
   useEffect(()=>{
-    sb.from("known_bugs").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
-    sb.from("bug_reports").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setReports(data);});
+    sb.from("known_bugs").select("*").order("id",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
+    sb.from("bug_reports").select("*").order("id",{ascending:false}).then(({data})=>{if(data)setReports(data);});
   },[]);
 
   // Sync managerDisabled from parent
@@ -1709,11 +1784,11 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
           {(storeHours||DEFAULT_HOURS).map((row,i)=>(
             <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
               <input value={row.days} onChange={e=>{const h=[...(storeHours||DEFAULT_HOURS)];h[i]={...h[i],days:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
-                style={{flex:"0 0 90px",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 10px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
+                style={{flex:"0 0 74px",width:74,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 8px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
               <input value={row.hours} onChange={e=>{const h=[...(storeHours||DEFAULT_HOURS)];h[i]={...h[i],hours:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
-                style={{flex:1,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 10px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
+                style={{flex:1,minWidth:0,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 8px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
               <button onClick={()=>{const h=(storeHours||DEFAULT_HOURS).filter((_,j)=>j!==i);onStoreHoursChange&&onStoreHoursChange(h);}}
-                style={{background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:6,width:28,height:28,color:DT.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                style={{background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:6,width:28,height:28,flexShrink:0,color:DT.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
             </div>
           ))}
           <button onClick={()=>onStoreHoursChange&&onStoreHoursChange([...(storeHours||DEFAULT_HOURS),{days:"",hours:""}])}
@@ -1732,7 +1807,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowAddBug(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>CANCEL</button>
-              <button onClick={async()=>{if(!bugForm.title||!bugForm.description)return;const{data}=await sb.from("known_bugs").insert({title:bugForm.title,description:bugForm.description,severity:bugForm.severity,status:bugForm.status,created_at:new Date().toLocaleDateString()}).select().single();if(data)setKnownBugs(prev=>[data,...prev]);setBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBug(false);}} style={{flex:2,padding:"8px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>PUSH_BUG →</button>
+              <button onClick={async()=>{if(!bugForm.title||!bugForm.description)return;const{data}=await sb.from("known_bugs").insert({title:bugForm.title,description:bugForm.description,severity:bugForm.severity,status:bugForm.status,created_at:new Date().toISOString()}).select().single();if(data)setKnownBugs(prev=>[data,...prev]);setBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBug(false);}} style={{flex:2,padding:"8px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>PUSH_BUG →</button>
             </div>
           </div>
         )}
@@ -2124,7 +2199,10 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
       `}</style>
       <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
         <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
-        <div style={{fontSize:18,fontWeight:700,color:accent,marginBottom:10}}>Work Schedule</div>
+        <div style={{display:"flex",alignItems:"center",gap:9,minHeight:42,marginBottom:10}}>
+          <span style={{fontSize:22,lineHeight:1}}>📅</span>
+          <span style={{fontSize:24,fontWeight:700,color:accent,lineHeight:1.15,letterSpacing:"-0.01em"}}>Work Schedule</span>
+        </div>
 
         {/* Store hours */}
         <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
@@ -2352,15 +2430,13 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
         .calc-btn{transition:transform 0.08s ease;}
         .calc-btn:active{transform:scale(0.92);}
       `}</style>
-      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 16px 14px"}}>
-        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
-        <div style={{fontSize:20,fontWeight:700,color:accent,marginBottom:12}}>Cash Tools</div>
+      <PageHeader title="Cash Tools" icon="💵" accent={accent} isDark={isDark}>
         <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
           {[{id:"calc",label:"Calculator"},{id:"change",label:"Change"},{id:"cash",label:"Cash Counter"},{id:"tax",label:"Tax"}].map(t=>(
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"8px 12px",borderRadius:10,border:`1px solid ${tab===t.id?accent:border}`,background:tab===t.id?accent:"transparent",color:tab===t.id?"#0f1117":sub,fontSize:12,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",whiteSpace:"nowrap"}}>{t.label}</button>
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,minHeight:40,padding:"9px 14px",borderRadius:10,border:`1px solid ${tab===t.id?accent:border}`,background:tab===t.id?accent:"transparent",color:tab===t.id?"#0f1117":sub,fontSize:12,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",whiteSpace:"nowrap"}}>{t.label}</button>
           ))}
         </div>
-      </div>
+      </PageHeader>
       <div style={{padding:"16px"}}>
 
         {tab==="calc"&&(
@@ -2434,14 +2510,14 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
               <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>{taxMode==="add"?"Pre-Tax Price ($)":"Total with Tax ($)"}</div>
               <div style={{display:"flex",alignItems:"center",gap:10}}>
                 <span style={{fontSize:22,color:sub}}>$</span>
-                <input type="number" min="0" step="0.01" value={taxInput} onChange={e=>setTaxInput(e.target.value)} placeholder="0.00" style={{flex:1,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:24,fontFamily:"inherit",fontWeight:300}}/>
+                <input type="number" min="0" step="0.01" value={taxInput} onChange={e=>setTaxInput(e.target.value)} placeholder="0.00" style={{flex:1,minWidth:0,width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:22,fontFamily:"inherit",fontWeight:300}}/>
               </div>
             </div>
             {taxInput&&!isNaN(parseFloat(taxInput))&&(
               <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:12,animation:"fadeUp 0.2s ease"}}>
                 {[
                   {label:taxMode==="add"?"Pre-Tax Amount":"Total (with tax)",value:`$${parseFloat(taxInput).toFixed(2)}`,big:false},
-                  {label:"Tax (3.23%)",value:`$${Math.abs(taxAmt).toFixed(2)}`,big:false},
+                  {label:`Tax (${(taxRate*100).toFixed(2)}%)`,value:`$${Math.abs(taxAmt).toFixed(2)}`,big:false},
                   {label:taxMode==="add"?"Total with Tax":"Pre-Tax Amount",value:`$${Math.abs(taxTotal).toFixed(2)}`,big:true},
                 ].map((row,i)=>(
                   <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<2?`1px solid ${border}`:"none"}}>
@@ -2476,7 +2552,7 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
                   <input type="number" min="0" step="0.01" value={changeTotal}
                     onChange={e=>setChangeTotal(e.target.value)}
                     placeholder="0.00"
-                    style={{flex:1,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:22,fontFamily:"inherit",fontWeight:300}}/>
+                    style={{flex:1,minWidth:0,width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:22,fontFamily:"inherit",fontWeight:300}}/>
                 </div>
               </div>
               <div>
@@ -2486,7 +2562,7 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
                   <input type="number" min="0" step="0.01" value={changeGiven}
                     onChange={e=>setChangeGiven(e.target.value)}
                     placeholder="0.00"
-                    style={{flex:1,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:22,fontFamily:"inherit",fontWeight:300}}/>
+                    style={{flex:1,minWidth:0,width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:22,fontFamily:"inherit",fontWeight:300}}/>
                 </div>
               </div>
             </div>
@@ -2692,13 +2768,8 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
   return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
-        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>{"Gil's Grocery"}</div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontSize:20,fontWeight:700,color:accent}}>Checklists</div>
-          {isDev&&<button onClick={()=>setShowNewForm(v=>!v)} style={{padding:"7px 14px",background:showNewForm?"transparent":accent,border:`1px solid ${showNewForm?border:accent}`,borderRadius:20,color:showNewForm?sub:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{showNewForm?"✕ Cancel":"+ New List"}</button>}
-        </div>
-      </div>
+      <PageHeader title="Checklists" icon="📋" accent={accent} isDark={isDark}
+        action={isDev&&<HeaderAction on={showNewForm} onClick={()=>setShowNewForm(v=>!v)} accent={accent} isDark={isDark}>+ New List</HeaderAction>}/>
       <div style={{padding:"14px"}}>
         {showNewForm&&(
           <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.2s ease"}}>
@@ -2744,38 +2815,8 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
 }
 
 
-// ── CustomerCounter ───────────────────────────────────────────────────────────
-function CustomerCounter(){
-  const [count,setCount]=useState(0);
-  const [visible,setVisible]=useState(false);
-  const [pulse,setPulse]=useState(false);
-  function tap(){
-    setCount(n=>n+1);
-    setPulse(true);
-    setTimeout(()=>setPulse(false),200);
-  }
-  return(
-    <div style={{position:"fixed",bottom:90,right:12,zIndex:190,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
-      {visible&&(
-        <div style={{background:"#0f1525",border:"1px solid #1e2a40",borderRadius:14,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,animation:"popIn 0.2s ease",boxShadow:"0 4px 20px rgba(0,0,0,0.5)"}}>
-          <button onClick={()=>setCount(n=>Math.max(0,n-1))} style={{width:30,height:30,borderRadius:8,border:"1px solid #1e2a40",background:"transparent",color:"#7c83fd",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>−</button>
-          <div style={{textAlign:"center",minWidth:40}}>
-            <div style={{fontSize:26,fontWeight:700,color:"#f0f0f0",lineHeight:1,transform:pulse?"scale(1.2)":"scale(1)",transition:"transform 0.15s ease"}}>{count}</div>
-            <div style={{fontSize:9,color:"#3a4a60",letterSpacing:"0.08em",textTransform:"uppercase"}}>customers</div>
-          </div>
-          <button onClick={tap} style={{width:30,height:30,borderRadius:8,border:"1px solid #7c83fd44",background:"#7c83fd18",color:"#7c83fd",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>+</button>
-          <button onClick={()=>setCount(0)} style={{fontSize:10,color:"#3a4a60",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",padding:"0 0 0 4px"}}>reset</button>
-        </div>
-      )}
-      <button onClick={()=>setVisible(v=>!v)} style={{width:44,height:44,borderRadius:"50%",background:visible?"#7c83fd":"#0f1525",border:"1px solid #7c83fd44",color:visible?"#fff":"#7c83fd",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.4)",transition:"all 0.2s ease"}}>
-        👤
-      </button>
-    </div>
-  );
-}
-
 // ── SuggestionsPage ───────────────────────────────────────────────────────────
-function SuggestionsPage({isDark,isManager}){
+function SuggestionsPage({isDark,isManager,isDev}){
   const [suggestions,setSuggestions]=useState([]);
   const [form,setForm]=useState({title:"",description:"",category:"Feature"});
   const [showForm,setShowForm]=useState(false);
@@ -2789,14 +2830,14 @@ function SuggestionsPage({isDark,isManager}){
   const accent="#7c83fd";
 
   useEffect(()=>{
-    sb.from("suggestions").select("*").order("created_at",{ascending:false})
+    sb.from("suggestions").select("*").order("id",{ascending:false})
       .then(({data})=>{if(data)setSuggestions(data);setLoading(false);})
       .catch(()=>setLoading(false));
   },[]);
 
   async function submit(){
     if(!form.title.trim())return;
-    const row={title:form.title.trim(),description:form.description.trim(),category:form.category,created_at:new Date().toLocaleDateString(),votes:0};
+    const row={title:form.title.trim(),description:form.description.trim(),category:form.category,created_at:new Date().toISOString(),votes:0};
     const {data}=await sb.from("suggestions").insert(row).select().single();
     if(data){setSuggestions(prev=>[data,...prev]);}
     setForm({title:"",description:"",category:"Feature"});setShowForm(false);
@@ -2822,13 +2863,8 @@ function SuggestionsPage({isDark,isManager}){
   return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
-        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontSize:20,fontWeight:700,color:accent}}>💡 Suggestions</div>
-          <button onClick={()=>setShowForm(v=>!v)} style={{padding:"7px 14px",background:showForm?"transparent":accent,border:`1px solid ${showForm?border:accent}`,borderRadius:20,color:showForm?sub:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{showForm?"✕ Cancel":"+ Suggest"}</button>
-        </div>
-      </div>
+      <PageHeader title="Suggestions" icon="💡" accent={accent} isDark={isDark}
+        action={<HeaderAction on={showForm} onClick={()=>setShowForm(v=>!v)} accent={accent} isDark={isDark}>+ Suggest</HeaderAction>}/>
       <div style={{padding:"14px"}}>
         {showForm&&(
           <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.2s ease"}}>
@@ -2867,7 +2903,7 @@ function SuggestionsPage({isDark,isManager}){
                     <span style={{fontSize:10,padding:"1px 7px",borderRadius:10,background:`${catColor}22`,color:catColor,border:`1px solid ${catColor}44`}}>{s.category}</span>
                   </div>
                   {s.description&&<div style={{fontSize:12,color:sub,lineHeight:1.4,marginBottom:3}}>{s.description}</div>}
-                  <div style={{fontSize:10,color:sub}}>{s.created_at}</div>
+                  <div style={{fontSize:10,color:sub}}>{fmtDate(s.created_at)}</div>
                 </div>
                 {isDev&&<button onClick={()=>deleteSuggestion(s.id)} style={{background:"none",border:"none",color:sub,fontSize:14,cursor:"pointer",padding:4,flexShrink:0}}>🗑️</button>}
               </div>
@@ -2894,14 +2930,14 @@ function UpdateLogPage({isDark,isDev}){
   const accent="#f0c040";
 
   useEffect(()=>{
-    sb.from("update_logs").select("*").order("created_at",{ascending:false})
+    sb.from("update_logs").select("*").order("id",{ascending:false})
       .then(({data})=>{if(data)setLogs(data);setLoading(false);})
       .catch(()=>setLoading(false));
   },[]);
 
   async function addLog(){
     if(!form.title.trim())return;
-    const row={version:form.version.trim()||null,title:form.title.trim(),notes:form.notes.trim(),created_at:new Date().toLocaleDateString()};
+    const row={version:form.version.trim()||null,title:form.title.trim(),notes:form.notes.trim(),created_at:new Date().toISOString()};
     const {data}=await sb.from("update_logs").insert(row).select().single();
     if(data)setLogs(prev=>[data,...prev]);
     setForm({version:"",title:"",notes:""});setShowForm(false);
@@ -2915,13 +2951,8 @@ function UpdateLogPage({isDark,isDev}){
   return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
-        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{fontSize:20,fontWeight:700,color:accent}}>📋 Update Log</div>
-          {isDev&&<button onClick={()=>setShowForm(v=>!v)} style={{padding:"7px 14px",background:showForm?"transparent":accent,border:`1px solid ${showForm?border:accent}`,borderRadius:20,color:showForm?sub:"#0f1117",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{showForm?"✕ Cancel":"+ Add Update"}</button>}
-        </div>
-      </div>
+      <PageHeader title="Update Log" icon="🗒️" accent={accent} isDark={isDark}
+        action={isDev&&<HeaderAction on={showForm} onClick={()=>setShowForm(v=>!v)} accent={accent} isDark={isDark} ink="#0f1117">+ Add Update</HeaderAction>}/>
       <div style={{padding:"14px"}}>
         {isDev&&showForm&&(
           <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.2s ease"}}>
@@ -2957,7 +2988,7 @@ function UpdateLogPage({isDark,isDev}){
                   <span style={{fontSize:14,fontWeight:700,color:text}}>{log.title}</span>
                 </div>
                 {log.notes&&<div style={{fontSize:13,color:sub,lineHeight:1.6,whiteSpace:"pre-line"}}>{log.notes}</div>}
-                <div style={{fontSize:10,color:sub,marginTop:6}}>{log.created_at}</div>
+                <div style={{fontSize:10,color:sub,marginTop:6}}>{fmtDate(log.created_at)}</div>
               </div>
               {isDev&&<button onClick={()=>deleteLog(log.id)} style={{background:"none",border:"none",color:sub,fontSize:14,cursor:"pointer",padding:4,flexShrink:0}}>🗑️</button>}
             </div>
@@ -3024,15 +3055,14 @@ function BottomNav({page,setPage,activeCategoryTheme,isDark,onMoreOpen}){
         <button className="nav-morph-btn"
           onClick={onMoreOpen}
           style={{flex:moreActive?1.6:1,padding:moreActive?"8px 10px":"8px 6px",borderRadius:14,
-            background:moreActive?"#7c83fd":"transparent",
+            background:moreActive?"#7c83fd":isDark?"rgba(124,131,253,0.14)":"rgba(90,96,220,0.12)",
             transition:"flex 0.35s cubic-bezier(0.34,1.1,0.64,1), background 0.25s ease, padding 0.35s cubic-bezier(0.34,1.1,0.64,1)",
             height:44,overflow:"hidden",
           }}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:moreActive?6:0,
             transition:"gap 0.35s cubic-bezier(0.34,1.1,0.64,1)",
           }}>
-            <span style={{fontSize:18,lineHeight:1,
-              filter:moreActive?"none":"opacity(0.45)",
+            <span style={{fontSize:20,lineHeight:1,fontWeight:700,color:moreActive?"#fff":isDark?"#aeb2ff":"#4a50c8",
               transform:moreActive?"scale(1.05)":"scale(1)",
               transition:"filter 0.2s, transform 0.35s cubic-bezier(0.34,1.3,0.64,1)",
               display:"block",
@@ -3128,6 +3158,7 @@ export default function App(){
   const [activeNotif,setActiveNotif]=useState(null);
   const [showMore,setShowMore]=useState(false);
   const [layout,setLayout]=useState(DEFAULT_LAYOUT);
+  useEffect(()=>{document.title="Gil's Grocery";},[]);
 
   // Load items and settings from Supabase on mount
   useEffect(()=>{
@@ -3249,14 +3280,22 @@ export default function App(){
         @keyframes floorFlash{0%{opacity:1}40%{opacity:0.4}100%{opacity:1}}
         .tap-btn{transition:transform 0.1s ease,opacity 0.12s;}
         .tap-btn:active{transform:scale(0.95);opacity:0.8;}
+        input,select,textarea{min-width:0;max-width:100%;box-sizing:border-box;}
+        .skel{background:${isDark?"linear-gradient(90deg,#111725 25%,#1a2236 50%,#111725 75%)":"linear-gradient(90deg,#e2e2d4 25%,#ececdf 50%,#e2e2d4 75%)"};background-size:200% 100%;animation:skelShimmer 1.3s ease-in-out infinite;}
+        @keyframes skelShimmer{0%{background-position:150% 0}100%{background-position:-50% 0}}
         .cat-tap:active{transform:scale(0.96)!important;transition:transform 0.08s ease!important;}
       `}</style>
-      {/* Loading screen */}
+      {/* Loading skeleton: the page shape appears instantly, data fills in */}
       {loading&&(
-        <div style={{position:"fixed",inset:0,background:"#080b12",zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-          <div style={{fontSize:40,animation:"popIn 0.5s cubic-bezier(0.34,1.3,0.64,1)"}}>🏪</div>
-          <div style={{fontSize:16,fontWeight:700,color:"#f0c040",fontFamily:"'Georgia',serif",animation:"loadTextIn 0.4s ease 0.2s both"}}>Gil's Grocery</div>
-          <div style={{fontSize:12,color:"#3a4a60",letterSpacing:"0.1em",textTransform:"uppercase",animation:"loadTextIn 0.4s ease 0.35s both"}}>Loading…</div>
+        <div aria-busy="true" aria-label="Loading" style={{position:"fixed",inset:0,background:isDark?"#080b12":"#f0f0e8",zIndex:999,overflow:"hidden"}}>
+          <div style={{padding:"18px 16px 14px",borderBottom:`1px solid ${isDark?"#1e2a40":"#d0d0c0"}`}}>
+            <div style={{fontSize:10,color:isDark?"#3a4a60":"#909080",letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:8}}>Gil's Grocery</div>
+            <div className="skel" style={{width:190,height:28,borderRadius:8}}/>
+            <div className="skel" style={{height:44,borderRadius:12,marginTop:14}}/>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,padding:16}}>
+            {Array.from({length:8},(_,i)=><div key={i} className="skel" style={{height:96,borderRadius:14,animationDelay:`${i*0.06}s`}}/>)}
+          </div>
         </div>
       )}
       {/* Manager Disabled Modal */}
@@ -3306,6 +3345,7 @@ export default function App(){
         </div>
       )}
 
+      <PageErrorBoundary key={page+"|"+(selectedCategory?.key||"")} isDark={isDark}>
       {page==="pricing"&&(
         selectedCategory
           ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
@@ -3314,10 +3354,11 @@ export default function App(){
       {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours} bannerOffset={bannerOffset}/>}
       {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
       {page==="checklists"&&<ChecklistsPage isDev={isDev} isDark={isDark} bannerOffset={bannerOffset}/>}
-      {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager}/>}
+      {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager} isDev={isDev}/>}
       {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}      <CustomerCounter/>
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
+      </PageErrorBoundary>
       <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
       <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
     </div>

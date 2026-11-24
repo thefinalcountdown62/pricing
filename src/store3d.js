@@ -47,7 +47,7 @@ export function toFeet(layout) {
     zones: (layout.zones || []).map(z => {
       const kind = z.kind && KINDS[z.kind] ? z.kind : inferKind(z.key);
       return { key: z.key, label: z.label || "", kind, x: f(z.x, size.w), z: f(z.y, size.d), w: f(z.w, size.w), d: f(z.h, size.d),
-        h: +z.height || inferHeight(z.key, kind), color: z.color || KINDS[kind].color, tappable: z.tappable !== false };
+        h: +z.height || inferHeight(z.key, kind), color: z.color || KINDS[kind].color, tappable: z.tappable !== false, ...(z.rot != null ? { rot: +z.rot } : {}) };
     }),
     walls: (layout.walls || []).map(w => ({ x1: f(w.x1, size.w), z1: f(w.y1, size.d), x2: f(w.x2, size.w), z2: f(w.y2, size.d) })),
   };
@@ -57,7 +57,7 @@ export function toPercent(st) {
   const { w: W, d: D } = st.size, p = (v, s) => r2(v / s * 100);
   return {
     size: { ...st.size },
-    zones: st.zones.map(z => ({ key: z.key, label: z.label, x: p(z.x, W), y: p(z.z, D), w: p(z.w, W), h: p(z.d, D), color: z.color, tappable: z.tappable, kind: z.kind, height: z.h })),
+    zones: st.zones.map(z => ({ key: z.key, label: z.label, x: p(z.x, W), y: p(z.z, D), w: p(z.w, W), h: p(z.d, D), color: z.color, tappable: z.tappable, kind: z.kind, height: z.h, ...(z.rot != null ? { rot: z.rot } : {}) })),
     walls: st.walls.map(w => ({ x1: p(w.x1, W), y1: p(w.z1, D), x2: p(w.x2, W), y2: p(w.z2, D) })),
   };
 }
@@ -232,9 +232,14 @@ function facing(z, size) {
     const cx = z.x + z.w / 2 - size.w / 2, cz = z.z + z.d / 2 - size.d / 2;
     front = z.w >= z.d ? (cz <= 0 ? "+z" : "-z") : (cx <= 0 ? "+x" : "-x");
   }
+  if (z.rot != null) front = ROT_DIR[((Math.round(z.rot / 90) % 4) + 4) % 4];
   const alongZ = front[1] === "z";
   return { L: alongZ ? z.w : z.d, T: alongZ ? z.d : z.w, rot: { "+z": 0, "-z": Math.PI, "+x": Math.PI / 2, "-x": -Math.PI / 2 }[front], freestanding: !wall };
 }
+// rot (degrees) → which way the front faces: 0 toward the entrance, 90 right, 180 toward the back, 270 left
+const ROT_DIR = ["+z", "+x", "-z", "-x"];
+export function rotOf(z, size) { return z.rot != null ? z.rot : ROT_DIR.indexOf(facingDir(z, size)) * 90; }
+function facingDir(z, size) { const f = facing({ ...z, rot: null }, size); return { 0: "+z", [Math.PI]: "-z", [Math.PI / 2]: "+x", [-Math.PI / 2]: "-x" }[f.rot]; }
 // every model below is built with its length along x, depth along z, front facing +z, floor at y=0
 function fillShelf(list, style, r, len, y, zc, sd, gap, side) {
   const sp = { candy: [0.22, 0.38, 0.25, 0.45], snacks: [0.45, 0.7, 0.55, 0.85], household: [0.35, 0.6, 0.5, 0.95], cards: [0.38, 0.42, 0.6, 0.72] }[style] || [0.3, 0.55, 0.4, 0.8];
@@ -487,7 +492,17 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
   glow.visible = false; stage.world.add(glow);
   aimCamera(stage, size);
 
-  let pin = null;
+  let pin = null, fly = null;
+  // zoom toward the pinned fixture, keeping the current viewing angle; any user drag cancels it
+  stage.controls.addEventListener("start", () => { fly = null; });
+  function flyTo(o) {
+    const { camera, controls } = stage;
+    const dist = Math.min(36, Math.max(18, Math.max(o.z.w, o.z.d) * 1.5 + 16));
+    const tgt = new THREE.Vector3(o.m.position.x, Math.min(o.m.userData.top, 4) / 2, o.m.position.z);
+    const dir = camera.position.clone().sub(controls.target).normalize();
+    if (dir.y < 0.45) { dir.y = 0.45; dir.normalize(); } // never skim the floor
+    fly = { tgt, pos: tgt.clone().addScaledVector(dir, dist) };
+  }
   function setLabel(o, on) {
     if (!o.label) return;
     stage.world.remove(o.label); o.label.material.map.dispose(); o.label.material.dispose();
@@ -504,17 +519,22 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
       const h = Math.max(o.z.h, o.m.userData.top) + 0.1;
       glow.scale.set(o.z.w + 0.3, h, o.z.d + 0.3); glow.position.set(o.m.position.x, h / 2, o.m.position.z);
       setLabel(o, true);
+      flyTo(o);
     }
   }
   stage.setFrame(t => {
     animateWalls(wallMeshes, st.walls, size, stage.camera, "cut", wallH);
+    if (fly) {
+      stage.controls.target.lerp(fly.tgt, 0.08); stage.camera.position.lerp(fly.pos, 0.08);
+      if (stage.camera.position.distanceTo(fly.pos) < 0.05) fly = null;
+    }
     const o = byKey[pin];
     if (o) {
       glow.material.opacity = 0.12 + 0.1 * Math.sin(t / 260);
       marker.position.set(o.m.position.x, o.m.userData.top + 1.6 + 0.35 * Math.sin(t / 300), o.m.position.z);
     }
   });
-  return { setPin, top: () => aimCamera(stage, size, "top"), angled: () => aimCamera(stage, size, "3d"), dispose: () => stage.dispose() };
+  return { setPin, top: () => { fly = null; aimCamera(stage, size, "top"); }, angled: () => { fly = null; aimCamera(stage, size, "3d"); }, dispose: () => stage.dispose() };
 }
 
 // ── developer Store Builder ───────────────────────────────────────────────────
@@ -875,8 +895,19 @@ export function mountBuilder(host, layout, { onSave }) {
   });
   function setDraw(on) { drawWall = on; $("drawWall").classList.toggle("on", on); setPill(); }
   $("drawWall").onclick = () => { setDraw(!drawWall); if (drawWall) { sel = null; refresh(); } };
-  function rotate() { if (!sel || sel.kind !== "zone") return; commit(() => { const z = state.zones[sel.i], cx = z.x + z.w / 2, cz = z.z + z.d / 2; [z.w, z.d] = [z.d, z.w];
-    z.x = clamp(snap(cx - z.w / 2), 0, Math.max(0, state.size.w - z.w)); z.z = clamp(snap(cz - z.d / 2), 0, Math.max(0, state.size.d - z.d)); }); }
+  const FACE_NAMES = ["the entrance", "the right wall", "the back", "the left wall"];
+  function rotate() {
+    if (!sel || sel.kind !== "zone") return;
+    let msg = "";
+    commit(() => {
+      const z = state.zones[sel.i], cx = z.x + z.w / 2, cz = z.z + z.d / 2;
+      z.rot = (rotOf(z, state.size) + 90) % 360;   // quarter turn clockwise, all the way round
+      [z.w, z.d] = [z.d, z.w];
+      z.x = clamp(snap(cx - z.w / 2), 0, Math.max(0, state.size.w - z.w)); z.z = clamp(snap(cz - z.d / 2), 0, Math.max(0, state.size.d - z.d));
+      msg = `${z.label || "Separator"} · ${z.rot}° · front faces ${FACE_NAMES[z.rot / 90]}`;
+    });
+    $("modePill").textContent = msg;
+  }
   $("rot").onclick = rotate;
   $("dup").onclick = () => { if (!sel) return; commit(() => {
     if (sel.kind === "zone") { const z = state.zones[sel.i]; state.zones.push({ ...z, key: uniqueKey(z.key + "_copy"), label: z.label ? z.label + " copy" : "", x: clamp(z.x + 1, 0, state.size.w - z.w), z: clamp(z.z + 1, 0, state.size.d - z.d) }); sel = { kind: "zone", i: state.zones.length - 1 }; }
