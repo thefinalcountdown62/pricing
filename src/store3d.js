@@ -65,6 +65,8 @@ export function toPercent(st) {
 // ── shared scene pieces ───────────────────────────────────────────────────────
 const UNIT = new THREE.BoxGeometry(1, 1, 1);
 const UNIT_EDGES = new THREE.EdgesGeometry(UNIT);
+const CYL = new THREE.CylinderGeometry(0.5, 0.5, 1, 7);
+UNIT.userData.shared = UNIT_EDGES.userData.shared = CYL.userData.shared = true;
 const FLOOR_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const WALL_H = 9, WALL_T = 0.45, WALL_LOW = 0.7;
 
@@ -72,15 +74,18 @@ function brighten(hex, minL = 0.3) {
   const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl);
   return new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 1.25 + 0.05), Math.max(hsl.l * 1.9, minL));
 }
-function clearWorld(world) {
-  world.children.slice().forEach(o => {
-    world.remove(o);
-    o.traverse(c => {
-      if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); }
-      if (c.geometry && c.geometry !== UNIT && c.geometry !== UNIT_EDGES) c.geometry.dispose();
-    });
+function disposeObj(o) {
+  o.traverse(c => {
+    if (c.isInstancedMesh) c.dispose();
+    const ms = Array.isArray(c.material) ? c.material : c.material ? [c.material] : [];
+    ms.forEach(m => { if (m.userData.shared) return; if (m.map) m.map.dispose(); m.dispose(); });
+    if (c.geometry && !c.geometry.userData.shared) c.geometry.dispose();
   });
 }
+function clearWorld(world) {
+  world.children.slice().forEach(o => { world.remove(o); disposeObj(o); });
+}
+const rootOf = o => { while (o && o.userData.kind === undefined && o.userData.key === undefined) o = o.parent; return o; };
 // listeners are attached before OrbitControls so a drag on a fixture can switch the camera off first
 function createStage(host, { listeners = {}, bg = "#04060c" } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -149,18 +154,273 @@ function makeLabel(text, on, visible = true, onColor = "#f0c040") {
   s.scale.set(1.15 * c.width / c.height, 1.15, 1); s.renderOrder = 10; s.visible = visible;
   return s;
 }
-function zoneMesh(z, highlight) {
-  const col = brighten(z.color, z.kind === "separator" ? 0.14 : 0.3);
-  const glow = z.kind === "cooler" ? 0.22 : z.kind === "freezer" ? 0.15 : 0;
-  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.65, metalness: 0.05,
-    emissive: highlight ? new THREE.Color(highlight) : glow ? col.clone() : new THREE.Color(0), emissiveIntensity: highlight ? 0.32 : glow });
-  const m = new THREE.Mesh(UNIT, mat); m.castShadow = z.kind !== "floor"; m.receiveShadow = true;
-  m.add(new THREE.LineSegments(UNIT_EDGES, new THREE.LineBasicMaterial({ color: highlight || "#000000", transparent: !highlight, opacity: highlight ? 1 : 0.45 })));
+// ── low-poly fixture models ───────────────────────────────────────────────────
+// The model is picked from the fixture's name (Candy 2 → candy rack, Cooler 4 → glass-door cooler, …),
+// so renaming a fixture in the builder changes what it looks like.
+export function styleOf(z) {
+  const t = (z.key + " " + (z.label || "")).toLowerCase(), k = z.kind;
+  if (k === "separator" || /rack_sep|separator/.test(t)) return "separator";
+  if (k === "floor" || /back.?room|storage|stock.?room/.test(t)) return "backroom";
+  if (/ice.?cream|freezer|frozen/.test(t) || k === "freezer") return "freezer";
+  if (/cooler|beer.?case|beer.?wine|fridge|drink|soda/.test(t) || k === "cooler") return "cooler";
+  if (/wine/.test(t)) return "wine";
+  if (/counter|register|checkout/.test(t) || k === "counter") return "counter";
+  if (/cigar|tobacco|humidor/.test(t) || k === "case") return "case";
+  if (/meat|table|block/.test(t) || k === "table") return "table";
+  if (/news|paper|magazine/.test(t)) return "news";
+  if (/greeting|card/.test(t)) return "cards";
+  if (/candy|gum|chocolate/.test(t)) return "candy";
+  if (/snack|chip/.test(t)) return "snacks";
+  if (/household|clean|soap|laundry/.test(t)) return "household";
+  return "grocery";
+}
+const PAL = {
+  candy: ["#e63946", "#f4a261", "#e9c46a", "#2a9d8f", "#8e44ad", "#f72585", "#4361ee", "#ff9f1c", "#06d6a0", "#ffffff"],
+  snacks: ["#d62828", "#f77f00", "#fcbf49", "#2a9d8f", "#3a86ff", "#8338ec", "#ffbe0b"],
+  grocery: ["#bc4749", "#f2e8cf", "#6a994e", "#386641", "#e9c46a", "#a7c957", "#264653", "#dda15e"],
+  household: ["#4cc9f0", "#4361ee", "#ffffff", "#f72585", "#90be6d", "#f9c74f", "#277da1"],
+  cards: ["#ffadad", "#ffd6a5", "#fdffb6", "#caffbf", "#9bf6ff", "#a0c4ff", "#bdb2ff", "#ffc6ff", "#ffffff"],
+  drinks: ["#e63946", "#1d3557", "#2a9d8f", "#ffb703", "#fb8500", "#8ecae6", "#06d6a0", "#ef476f", "#ffffff", "#3a5a40"],
+  wine: ["#4a0e1e", "#6b0f1a", "#1b4332", "#2d6a4f", "#c9a227", "#3d0c11", "#e9d8a6"],
+  icecream: ["#f1faee", "#ffcad4", "#a8dadc", "#e9c46a", "#6f4518", "#ffafcc"],
+  cigars: ["#7f4f24", "#936639", "#a68a64", "#b6ad90", "#582f0e", "#c9a227"],
+  papers: ["#f4f1ea", "#e9e4d8", "#dcd6c8", "#f8f8f8"],
+  boxes: ["#b98b52", "#a97c46", "#c79a62", "#9c7444"],
+};
+const MATS = new Map();
+function mat(color, o = {}) {
+  const k = color + "|" + [o.r, o.m, o.o, o.e].join(",");
+  let m = MATS.get(k);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, roughness: o.r ?? 0.75, metalness: o.m ?? 0.05, flatShading: true,
+      transparent: o.o != null, opacity: o.o ?? 1, depthWrite: o.o == null,
+      emissive: o.e ? new THREE.Color(color) : new THREE.Color(0), emissiveIntensity: o.e || 0 });
+    m.userData.shared = true; MATS.set(k, m);
+  }
   return m;
 }
-function placeZone(m, z, size) {
-  m.scale.set(Math.max(z.w, 0.05), Math.max(z.h, 0.02), Math.max(z.d, 0.05));
-  m.position.set(z.x + z.w / 2 - size.w / 2, z.h / 2, z.z + z.d / 2 - size.d / 2);
+function rng(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) { h = Math.imul(h ^ str.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+  return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+}
+const pick = (r, a) => a[Math.floor(r() * a.length)];
+function part(g, w, h, d, material, x, y, z, cast = true) {
+  const m = new THREE.Mesh(UNIT, material);
+  m.scale.set(Math.max(w, 0.01), Math.max(h, 0.01), Math.max(d, 0.01));
+  m.position.set(x, y, z); m.castShadow = cast; m.receiveShadow = true; g.add(m); return m;
+}
+const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _eu = new THREE.Euler(), _sc = new THREE.Vector3(), _tr = new THREE.Vector3(), _col = new THREE.Color();
+function items(g, list, geo = UNIT) {
+  if (!list.length) return;
+  const im = new THREE.InstancedMesh(geo, mat("#ffffff", { r: 0.6 }), list.length);
+  list.forEach((it, i) => {
+    _eu.set(it.rx || 0, it.ry || 0, 0); _q.setFromEuler(_eu); _tr.set(it.x, it.y, it.z); _sc.set(it.w, it.h, it.d);
+    im.setMatrixAt(i, _m4.compose(_tr, _q, _sc)); im.setColorAt(i, _col.set(it.c));
+  });
+  im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+  im.receiveShadow = true; g.add(im);
+}
+// Which way the fixture faces: away from the wall it backs onto (if its long side runs along it), else toward the middle of the store.
+function facing(z, size) {
+  const edges = [["+z", z.z, z.w, z.d], ["-z", size.d - (z.z + z.d), z.w, z.d], ["+x", z.x, z.d, z.w], ["-x", size.w - (z.x + z.w), z.d, z.w]]
+    .sort((a, b) => a[1] - b[1]);
+  let front = null;
+  for (const [dir, dist, along, across] of edges) { if (dist > 3.5) break; if (along >= across * 0.45) { front = dir; break; } }
+  const wall = !!front;
+  if (!front) {
+    const cx = z.x + z.w / 2 - size.w / 2, cz = z.z + z.d / 2 - size.d / 2;
+    front = z.w >= z.d ? (cz <= 0 ? "+z" : "-z") : (cx <= 0 ? "+x" : "-x");
+  }
+  const alongZ = front[1] === "z";
+  return { L: alongZ ? z.w : z.d, T: alongZ ? z.d : z.w, rot: { "+z": 0, "-z": Math.PI, "+x": Math.PI / 2, "-x": -Math.PI / 2 }[front], freestanding: !wall };
+}
+// every model below is built with its length along x, depth along z, front facing +z, floor at y=0
+function fillShelf(list, style, r, len, y, zc, sd, gap, side) {
+  const sp = { candy: [0.22, 0.38, 0.25, 0.45], snacks: [0.45, 0.7, 0.55, 0.85], household: [0.35, 0.6, 0.5, 0.95], cards: [0.38, 0.42, 0.6, 0.72] }[style] || [0.3, 0.55, 0.4, 0.8];
+  let x = -len / 2, n = 0;
+  while (x < len / 2 - sp[0] && n++ < 60) {
+    const w = sp[0] + r() * (sp[1] - sp[0]); if (x + w > len / 2) break;
+    const h = Math.min(gap * 0.82, sp[2] + r() * (sp[3] - sp[2])), c = pick(r, PAL[style] || PAL.grocery);
+    if (style === "cards") list.push({ x: x + w / 2, y: y + h / 2 + 0.03, z: zc, w, h, d: 0.05, rx: -side * 0.3, c });
+    else { const d = sd * (0.55 + r() * 0.3); list.push({ x: x + w / 2, y: y + h / 2 + 0.03, z: zc + side * (sd - d) / 2 * 0.6, w, h, d, c }); }
+    x += w + 0.05 + r() * 0.04;
+  }
+}
+function gondola(g, L, T, H, dbl, style, r, col) {
+  const metal = mat("#8a8f99", { m: 0.4, r: 0.5 }), dark = mat("#3a3f48", { r: 0.6 });
+  const base = Math.min(0.35, H * 0.15);
+  part(g, L, base, T, dark, 0, base / 2, 0);
+  const back = dbl ? 0 : -T / 2 + 0.07;
+  part(g, L, H - base, 0.12, mat(col), 0, base + (H - base) / 2, back);
+  part(g, 0.12, H, T, metal, -L / 2 + 0.06, H / 2, 0); part(g, 0.12, H, T, metal, L / 2 - 0.06, H / 2, 0);
+  const n = Math.max(1, Math.min(6, Math.round((H - base - 0.3) / 1.15))), gap = (H - base - 0.15) / n;
+  const sd = dbl ? T / 2 - 0.12 : T - 0.2, list = [];
+  for (const side of dbl ? [1, -1] : [1]) {
+    const zc = dbl ? side * (T / 4 + 0.03) : back + 0.06 + sd / 2;
+    for (let i = 0; i < n; i++) {
+      const y = base + i * gap;
+      part(g, L - 0.24, 0.06, sd, metal, 0, y, zc, false);
+      fillShelf(list, style, r, L - 0.4, y, zc, sd, gap, side);
+    }
+  }
+  items(g, list);
+}
+function cooler(g, L, T, H, r, col) {
+  const body = mat("#2e333b", { r: 0.55, m: 0.3 }), trim = mat("#b8bec8", { m: 0.6, r: 0.35 }), glass = mat("#9fd8ff", { o: 0.2, r: 0.1, m: 0.1 });
+  const foot = Math.min(0.5, H * 0.12), cap = Math.min(0.6, H * 0.12);
+  part(g, L, H, 0.15, body, 0, H / 2, -T / 2 + 0.075);
+  part(g, 0.15, H, T, body, -L / 2 + 0.075, H / 2, 0); part(g, 0.15, H, T, body, L / 2 - 0.075, H / 2, 0);
+  part(g, L, foot, T, body, 0, foot / 2, 0); part(g, L, cap, T, body, 0, H - cap / 2, 0);
+  part(g, L, cap * 0.8, 0.12, mat(col, { e: 0.45 }), 0, H - cap / 2, T / 2 - 0.02);       // lit header sign
+  part(g, L - 0.3, 0.04, T - 0.4, mat("#eef8ff", { e: 0.9 }), 0, H - cap - 0.04, 0, false);  // interior light
+  const nd = Math.max(1, Math.round(L / 2.4)), dw = L / nd, inner = H - foot - cap;
+  for (let i = 0; i <= nd; i++) part(g, 0.08, inner, 0.1, trim, -L / 2 + dw * i + (i === 0 ? 0.04 : i === nd ? -0.04 : 0), foot + inner / 2, T / 2 - 0.05, false);
+  for (let i = 0; i < nd; i++) {
+    const cx = -L / 2 + dw * (i + 0.5);
+    part(g, dw - 0.12, inner - 0.05, 0.03, glass, cx, foot + inner / 2, T / 2 - 0.05, false);
+    part(g, 0.06, Math.min(1.3, inner * 0.4), 0.08, trim, cx + dw / 2 - 0.25, foot + inner / 2, T / 2 + 0.03, false);  // handle
+  }
+  const shelves = Math.max(2, Math.min(6, Math.floor(inner / 1.05))), sg = inner / shelves, list = [];
+  for (let s = 0; s < shelves; s++) {
+    const y = foot + s * sg + 0.05;
+    part(g, L - 0.35, 0.04, T - 0.4, trim, 0, y, 0.05, false);
+    let x = -L / 2 + 0.3, n = 0;
+    while (x < L / 2 - 0.35 && n++ < 60) {
+      const w = 0.22 + r() * 0.12, h = Math.min(sg * 0.8, 0.45 + r() * 0.4);
+      list.push({ x: x + w / 2, y: y + 0.02 + h / 2, z: T / 2 - 0.5 - r() * 0.1, w, h, d: w, c: pick(r, PAL.drinks) });
+      x += w + 0.04;
+    }
+  }
+  items(g, list, CYL);
+}
+function freezer(g, L, T, H, r, col) {
+  const white = mat("#e6ebf0", { r: 0.5 }), frost = mat("#bfe6ff", { o: 0.32, r: 0.1 }), trim = mat("#9aa3ad", { m: 0.5, r: 0.4 });
+  const bh = Math.max(0.5, H * 0.8);
+  part(g, L, bh, T, white, 0, bh / 2, 0);
+  part(g, L + 0.02, Math.min(0.35, bh * 0.2), T + 0.02, mat(col, { e: 0.2 }), 0, bh * 0.2, 0, false);  // color band
+  part(g, L, 0.08, T, trim, 0, bh + 0.04, 0, false);
+  const list = [], cols = Math.max(1, Math.floor((L - 0.3) / 0.55)), rows = Math.max(1, Math.floor((T - 0.3) / 0.55));
+  for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
+    if (r() < 0.12) continue;
+    list.push({ x: -L / 2 + 0.15 + (a + 0.5) * ((L - 0.3) / cols), y: bh + 0.08, z: -T / 2 + 0.15 + (b + 0.5) * ((T - 0.3) / rows), w: 0.45, h: 0.22, d: 0.45, c: pick(r, PAL.icecream) });
+  }
+  items(g, list, CYL);
+  const ly = Math.min(bh + 0.22, H - 0.04);
+  const l1 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, -T / 4, false); l1.rotation.x = -0.12;
+  const l2 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, T / 4, false); l2.rotation.x = 0.12;
+}
+function wine(g, L, T, H, dbl, r, col) {
+  const wood = mat(col), dark = mat("#3b2a1a");
+  part(g, L, 0.3, T, dark, 0, 0.15, 0);
+  part(g, 0.15, H, T, wood, -L / 2 + 0.075, H / 2, 0); part(g, 0.15, H, T, wood, L / 2 - 0.075, H / 2, 0);
+  const back = dbl ? 0 : -T / 2 + 0.06;
+  part(g, L, H - 0.3, 0.08, wood, 0, 0.3 + (H - 0.3) / 2, back);
+  part(g, L, 0.12, T, wood, 0, H - 0.06, 0);
+  const n = Math.max(2, Math.min(7, Math.round((H - 0.5) / 0.85))), sg = (H - 0.45) / n;
+  const sd = dbl ? T / 2 - 0.1 : T - 0.15, list = [];
+  for (const side of dbl ? [1, -1] : [1]) {
+    const zc = dbl ? side * T / 4 : back + 0.04 + sd / 2, bl = Math.min(sd * 0.9, 1.0);
+    for (let i = 0; i < n; i++) {
+      const y = 0.3 + i * sg;
+      part(g, L - 0.3, 0.05, sd, wood, 0, y, zc, false);
+      for (let x = -L / 2 + 0.3, k = 0; x < L / 2 - 0.2 && k < 60; x += 0.3, k++)
+        list.push({ x, y: y + 0.17, z: zc + side * (sd - bl) * 0.15, w: 0.26, h: bl, d: 0.26, rx: Math.PI / 2, c: pick(r, PAL.wine) });  // bottles lying down
+    }
+  }
+  items(g, list, CYL);
+}
+function counter(g, L, T, H, r, col) {
+  const dark = mat("#22262d", { r: 0.5 });
+  part(g, L, H - 0.15, T, mat(col), 0, (H - 0.15) / 2, 0);
+  part(g, L + 0.25, 0.15, T + 0.25, mat("#d9cdb8", { r: 0.5 }), 0, H - 0.075, 0);
+  part(g, L - 0.4, 0.4, 0.05, mat("#141820"), 0, 0.2, T / 2 + 0.01, false);
+  const rx = -L / 4;
+  part(g, 1.3, 0.45, 1.0, dark, rx, H + 0.225, 0);                                    // register
+  const sc = part(g, 1.0, 0.7, 0.06, dark, rx, H + 0.8, -0.25); sc.rotation.x = -0.2;  // screen
+  const gl = part(g, 0.86, 0.56, 0.02, mat("#3fa7ff", { e: 0.6 }), rx, H + 0.8, -0.21, false); gl.rotation.x = -0.2;
+  part(g, 0.35, 0.25, 0.45, dark, rx + 1.1, H + 0.125, T / 2 - 0.4);                   // card reader
+  const list = [];
+  for (let x = L / 4 - 0.8, i = 0; i < 8 && x < L / 2 - 0.2; i++, x += 0.22)
+    list.push({ x, y: H + 0.12, z: T / 2 - 0.3, w: 0.18, h: 0.24, d: 0.12, c: pick(r, PAL.candy) });  // impulse-buy rack
+  items(g, list);
+}
+function displayCase(g, L, T, H, r, col) {
+  const glass = mat("#cfeaff", { o: 0.16, r: 0.05 }), metal = mat("#c0c6cf", { m: 0.7, r: 0.3 });
+  const ch = Math.min(H * 0.5, 2.2), gh = H - ch;
+  part(g, L, ch, T, mat(col), 0, ch / 2, 0);
+  part(g, L, gh, T, glass, 0, ch + gh / 2, 0, false);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, 0.07, gh, 0.07, metal, sx * (L / 2 - 0.035), ch + gh / 2, sz * (T / 2 - 0.035), false);
+  for (const sz of [-1, 1]) part(g, L, 0.06, 0.07, metal, 0, H - 0.03, sz * (T / 2 - 0.035), false);
+  for (const sx of [-1, 1]) part(g, 0.07, 0.06, T, metal, sx * (L / 2 - 0.035), H - 0.03, 0, false);
+  part(g, L - 0.3, 0.03, 0.22, mat("#fff4d6", { e: 0.7 }), 0, H - 0.1, -T / 2 + 0.3, false);  // light strip
+  const mid = ch + gh * 0.5;
+  part(g, L - 0.2, 0.03, T - 0.3, glass, 0, mid, 0, false);
+  const list = [];
+  for (const y of [ch + 0.03, mid + 0.02]) for (let x = -L / 2 + 0.25, k = 0; x < L / 2 - 0.5 && k < 30; k++) {
+    const w = 0.45 + r() * 0.3;
+    list.push({ x: x + w / 2, y: y + 0.1, z: (r() - 0.5) * Math.max(0, T - 0.9), w, h: 0.18, d: 0.6, ry: (r() - 0.5) * 0.3, c: pick(r, PAL.cigars) });  // cigar boxes
+    x += w + 0.12;
+  }
+  items(g, list);
+}
+function table(g, L, T, H, col) {
+  const th = Math.min(0.45, H * 0.2), leg = Math.min(0.35, L / 6, T / 6), dark = mat(col);
+  part(g, L, th, T, mat("#b08355"), 0, H - th / 2, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, leg, H - th, leg, dark, sx * (L / 2 - leg), (H - th) / 2, sz * (T / 2 - leg));
+  if (L > 1.2 && T > 1.2) part(g, L - 0.6, 0.08, T - 0.6, dark, 0, Math.min(0.6, H * 0.25), 0, false);
+}
+function newsStand(g, L, T, H, r, col) {
+  const frame = mat(col), list = [], tiers = 3, td = T / tiers;
+  part(g, L, 0.4, T, frame, 0, 0.2, 0);
+  for (let i = 0; i < tiers; i++) {
+    const tz = T / 2 - (i + 0.5) * td, hi = 0.4 + (i + 1) * Math.max(0.2, (H - 0.9) / tiers);
+    part(g, L, hi, td, frame, 0, hi / 2, tz);
+    for (let x = -L / 2 + 0.15, k = 0; x < L / 2 - 0.9 && k < 20; x += 0.95, k++)
+      list.push({ x: x + 0.4, y: hi + 0.08, z: tz, w: 0.8, h: 0.14, d: td * 0.8, rx: 0.22, c: pick(r, PAL.papers) });  // newspaper stacks
+  }
+  items(g, list);
+}
+function backRoom(g, L, T, r) {
+  part(g, L, 0.04, T, mat("#4a4f57", { r: 0.95 }), 0, 0.02, 0, false);
+  if (L < 3.6 || T < 3.6) return 0.04;
+  const pallet = mat("#9c7a4d"), list = [];
+  const spots = [[-L / 2 + 1.7, -T / 2 + 1.7], [L / 2 - 1.7, -T / 2 + 1.7], [-L / 2 + 1.7, T / 2 - 1.7]].slice(0, L * T > 60 ? 3 : 1);
+  let top = 0.4;
+  for (const [px, pz] of spots) {
+    part(g, 3, 0.4, 3, pallet, px, 0.2, pz);
+    const layers = 1 + Math.floor(r() * 3);
+    for (let ly = 0; ly < layers; ly++) for (const a of [-0.7, 0.7]) for (const b of [-0.7, 0.7]) {
+      if (r() < 0.15) continue;
+      list.push({ x: px + a, y: 0.4 + ly * 1.05 + 0.5, z: pz + b, w: 1.35, h: 1.0, d: 1.35, ry: (r() - 0.5) * 0.15, c: pick(r, PAL.boxes) });
+      top = Math.max(top, 0.4 + (ly + 1) * 1.05);
+    }
+  }
+  items(g, list);
+  return top;
+}
+export function buildFixture(z, size) {
+  const g = new THREE.Group(), m = new THREE.Group(); g.add(m);
+  const f = facing(z, size), style = styleOf(z), r = rng(z.key || "x");
+  const L = Math.max(f.L, 0.2), T = Math.max(f.T, 0.2), H = Math.max(z.h, 0.05);
+  const col = "#" + brighten(z.color, style === "separator" ? 0.14 : 0.3).getHexString();
+  let top = H;
+  switch (style) {
+    case "separator": part(m, L, H, Math.min(T, 0.25), mat("#4b515b", { m: 0.3 }), 0, H / 2, 0); break;
+    case "backroom": top = backRoom(m, L, T, r); break;
+    case "cooler": cooler(m, L, T, H, r, col); break;
+    case "freezer": freezer(m, L, T, H, r, col); break;
+    case "wine": wine(m, L, T, H, f.freestanding, r, col); break;
+    case "counter": counter(m, L, T, H, r, col); top = H + 1.2; break;
+    case "case": displayCase(m, L, T, H, r, col); break;
+    case "table": table(m, L, T, H, col); break;
+    case "news": newsStand(m, L, T, H, r, col); break;
+    default: gondola(m, L, T, H, f.freestanding, style, r, col);
+  }
+  m.rotation.y = f.rot;
+  g.position.set(z.x + z.w / 2 - size.w / 2, 0, z.z + z.d / 2 - size.d / 2);
+  g.userData.top = top;
+  return g;
 }
 function placeWall(m, w, size, height) {
   const dx = w.x2 - w.x1, dz = w.z2 - w.z1, L = Math.hypot(dx, dz) || 0.01;
@@ -199,19 +459,21 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
         const r = stage.el.getBoundingClientRect();
         ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
         raycaster.setFromCamera(ndc, stage.camera);
-        const hit = raycaster.intersectObjects(Object.values(byKey).map(o => o.m), false).find(h => h.object.userData.tappable);
-        if (hit) onSelectZone(hit.object.userData.key);
+        for (const h of raycaster.intersectObjects(Object.values(byKey).map(o => o.m), true)) {
+          const root = rootOf(h.object);
+          if (root && root.userData.tappable) { onSelectZone(root.userData.key); break; }
+        }
       },
     },
   });
   addFloor(stage.world, size);
   const byKey = {}, wallMeshes = [], wallH = [];
   st.zones.forEach(z => {
-    const m = zoneMesh(z, null); placeZone(m, z, size);
-    m.userData = { key: z.key, tappable: z.tappable };
+    const m = buildFixture(z, size), top = m.userData.top;
+    m.userData = { key: z.key, tappable: z.tappable, top };
     stage.world.add(m);
     let label = null;
-    if (z.label && z.tappable) { label = makeLabel(z.label, false); label.position.set(m.position.x, z.h + 0.9, m.position.z); stage.world.add(label); }
+    if (z.label && z.tappable) { label = makeLabel(z.label, false); label.position.set(m.position.x, top + 0.9, m.position.z); stage.world.add(label); }
     byKey[z.key] = { m, z, label };
   });
   st.walls.forEach((w, i) => {
@@ -220,6 +482,9 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
   });
   const marker = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.6, 20), new THREE.MeshStandardMaterial({ color: accent, emissive: new THREE.Color(accent), emissiveIntensity: 0.8 }));
   marker.rotation.x = Math.PI; marker.visible = false; stage.world.add(marker);
+  const glow = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.18, depthWrite: false }));
+  glow.add(new THREE.LineSegments(UNIT_EDGES, new THREE.LineBasicMaterial({ color: accent })));
+  glow.visible = false; stage.world.add(glow);
   aimCamera(stage, size);
 
   let pin = null;
@@ -227,23 +492,26 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
     if (!o.label) return;
     stage.world.remove(o.label); o.label.material.map.dispose(); o.label.material.dispose();
     o.label = makeLabel(o.z.label, on, true, accent);
-    o.label.position.set(o.m.position.x, o.z.h + (on ? 3.2 : 0.9), o.m.position.z); stage.world.add(o.label);
+    o.label.position.set(o.m.position.x, o.m.userData.top + (on ? 3.2 : 0.9), o.m.position.z); stage.world.add(o.label);
   }
   function setPin(key) {
     if (pin === key) return;
-    const old = byKey[pin];
-    if (old) { old.m.material.emissive.set(0); old.m.material.emissiveIntensity = 0; old.m.children[0].material.color.set("#000000"); old.m.children[0].material.opacity = 0.45; setLabel(old, false); }
+    if (byKey[pin]) setLabel(byKey[pin], false);
     pin = key;
     const o = byKey[key];
-    marker.visible = !!o;
-    if (o) { o.m.material.emissive.set(accent); o.m.children[0].material.color.set(accent); o.m.children[0].material.opacity = 1; setLabel(o, true); }
+    marker.visible = glow.visible = !!o;
+    if (o) {
+      const h = Math.max(o.z.h, o.m.userData.top) + 0.1;
+      glow.scale.set(o.z.w + 0.3, h, o.z.d + 0.3); glow.position.set(o.m.position.x, h / 2, o.m.position.z);
+      setLabel(o, true);
+    }
   }
   stage.setFrame(t => {
     animateWalls(wallMeshes, st.walls, size, stage.camera, "cut", wallH);
     const o = byKey[pin];
     if (o) {
-      o.m.material.emissiveIntensity = 0.35 + 0.25 * Math.sin(t / 260);
-      marker.position.set(o.m.position.x, o.z.h + 1.6 + 0.35 * Math.sin(t / 300), o.m.position.z);
+      glow.material.opacity = 0.12 + 0.1 * Math.sin(t / 260);
+      marker.position.set(o.m.position.x, o.m.userData.top + 1.6 + 0.35 * Math.sin(t / 300), o.m.position.z);
     }
   });
   return { setPin, top: () => aimCamera(stage, size, "top"), angled: () => aimCamera(stage, size, "3d"), dispose: () => stage.dispose() };
@@ -363,7 +631,7 @@ export function mountBuilder(host, layout, { onSave }) {
   // ── stage ──
   const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
   const stage = createStage($("stage"), { listeners: { pointerdown: onDown, pointermove: onMove, pointerup: onUp, pointercancel: onUp } });
-  let zoneMeshes = [], wallMeshes = [], handleMeshes = [], labelSprites = [], ghostWall;
+  let zoneMeshes = [], wallMeshes = [], handleMeshes = [], labelSprites = [], ghostWall, selBox = null;
   const wallH = [];
   const _p = new THREE.Vector3();
   stage.setFrame(() => {
@@ -375,9 +643,14 @@ export function mountBuilder(host, layout, { onSave }) {
   function buildScene() {
     clearWorld(stage.world); zoneMeshes = []; wallMeshes = []; handleMeshes = []; labelSprites = [];
     addFloor(stage.world, state.size);
+    selBox = null;
+    if (sel && sel.kind === "zone") {
+      selBox = new THREE.LineSegments(UNIT_EDGES, new THREE.LineBasicMaterial({ color: "#f0c040", depthTest: false, transparent: true }));
+      selBox.renderOrder = 15; stage.world.add(selBox);
+    }
     state.zones.forEach((z, i) => {
       const on = sel && sel.kind === "zone" && sel.i === i;
-      const m = zoneMesh(z, on ? "#f0c040" : null); m.userData = { kind: "zone", i };
+      const m = buildFixture(z, state.size); m.userData = { kind: "zone", i, top: m.userData.top };
       stage.world.add(m); zoneMeshes[i] = m;
       if (z.label) { const s = makeLabel(z.label, on, labelsOn); stage.world.add(s); labelSprites[i] = s; }
     });
@@ -392,7 +665,7 @@ export function mountBuilder(host, layout, { onSave }) {
       ["c-nw", "c-ne", "c-sw", "c-se"].forEach(part => addHandle(part, "#f0c040", new THREE.SphereGeometry(0.4, 18, 12)));
       addHandle("top", "#7fd3ff", new THREE.ConeGeometry(0.42, 0.85, 20));
     }
-    state.zones.forEach((_, i) => syncZone(i));
+    state.zones.forEach((_, i) => syncZone(i, false));
     state.walls.forEach((_, i) => syncWall(i));
     ghostWall = new THREE.Mesh(UNIT, new THREE.MeshStandardMaterial({ color: "#f0c040", transparent: true, opacity: 0.55 }));
     ghostWall.visible = false; stage.world.add(ghostWall);
@@ -401,12 +674,17 @@ export function mountBuilder(host, layout, { onSave }) {
     const h = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, emissive: new THREE.Color(col), emissiveIntensity: 0.55, depthTest: false, transparent: true }));
     h.renderOrder = 20; h.userData = { kind: sel.kind, i: sel.i, part }; stage.world.add(h); handleMeshes.push(h);
   }
-  function syncZone(i) {
-    const z = state.zones[i], m = zoneMeshes[i]; if (!m) return;
-    placeZone(m, z, state.size);
+  function syncZone(i, rebuild = true) {
+    const z = state.zones[i]; let m = zoneMeshes[i]; if (!m) return;
+    if (rebuild) {
+      stage.world.remove(m); disposeObj(m);
+      m = buildFixture(z, state.size); m.userData = { kind: "zone", i, top: m.userData.top };
+      stage.world.add(m); zoneMeshes[i] = m;
+    }
     const on = sel && sel.kind === "zone" && sel.i === i;
-    const s = labelSprites[i]; if (s) s.position.set(m.position.x, z.h + (on ? 2.2 : 0.9), m.position.z);
+    const s = labelSprites[i]; if (s) s.position.set(m.position.x, m.userData.top + (on ? 2.2 : 0.9), m.position.z);
     if (on) {
+      if (selBox) { const bh = Math.max(z.h, 0.1) + 0.1; selBox.scale.set(z.w + 0.15, bh, z.d + 0.15); selBox.position.set(m.position.x, bh / 2, m.position.z); }
       const x0 = wx(z.x), x1 = wx(z.x + z.w), z0 = wz(z.z), z1 = wz(z.z + z.d), y = z.h;
       const pos = { "c-nw": [x0, y, z0], "c-ne": [x1, y, z0], "c-sw": [x0, y, z1], "c-se": [x1, y, z1], top: [(x0 + x1) / 2, y + 0.75, (z0 + z1) / 2] };
       handleMeshes.forEach(h => h.position.set(...pos[h.userData.part]));
@@ -435,9 +713,9 @@ export function mountBuilder(host, layout, { onSave }) {
       stage.el.setPointerCapture(e.pointerId); return;
     }
     const hh = raycaster.intersectObjects(handleMeshes, false);
-    const hits = hh.length ? hh : raycaster.intersectObjects([...zoneMeshes.filter(Boolean), ...wallMeshes], false);
+    const hits = hh.length ? hh : raycaster.intersectObjects([...zoneMeshes.filter(Boolean), ...wallMeshes], true);
     if (!hits.length) { drag = { type: "maybeDeselect", x: e.clientX, y: e.clientY }; return; }
-    const ud = hits[0].object.userData, part = ud.part || "body";
+    const ud = rootOf(hits[0].object).userData, part = ud.part || "body";
     let plane = FLOOR_PLANE;
     if (part.startsWith("c-")) plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -state.zones[ud.i].h);
     else if (part === "top") {
