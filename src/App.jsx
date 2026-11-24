@@ -404,7 +404,7 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
   function pw(w){return w/100*W;}
   function ph(h){return h/100*H;}
   return(
-    <div style={{position:"relative",width:"100%",borderRadius:10,overflow:"hidden",background:"#080808",border:"1px solid rgba(255,255,255,0.07)"}}>
+    <div data-no-swipe style={{position:"relative",width:"100%",borderRadius:10,overflow:"hidden",background:"#080808",border:"1px solid rgba(255,255,255,0.07)"}}>
       <div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:6,right:6,zIndex:3,display:"flex",background:"rgba(8,11,18,0.85)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,overflow:"hidden"}}>
         {["2d","3d"].map(m=>(
           <button key={m} type="button" onClick={()=>pickMode(m)}
@@ -484,7 +484,7 @@ function SwipeRow({onSwipeLeft,children,accentColor}){
         <span style={{fontSize:20}}>✏️</span>
       </div>
       <div style={{transform:`translateX(${offset}px)`,transition:offset===0?"transform 0.2s":"none"}}
-        onTouchStart={e=>{startX.current=e.touches[0].clientX;}}
+        onTouchStart={e=>{startX.current=e.target.closest("[data-no-swipe]")?null:e.touches[0].clientX;}}
         onTouchMove={e=>{if(startX.current===null)return;const dx=e.touches[0].clientX-startX.current;if(dx<0)setOffset(Math.max(dx,-TH));}}
         onTouchEnd={()=>{if(offset<=-TH){setOffset(0);onSwipeLeft();}else setOffset(0);startX.current=null;}}
       >{children}</div>
@@ -510,7 +510,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
     <>
     {/* Fullscreen map takeover */}
     {mapExpanded&&(
-      <div style={{
+      <div data-no-swipe style={{
         position:"fixed",inset:0,zIndex:1000,
         background:"#050810",
         display:"flex",flexDirection:"column",
@@ -747,17 +747,13 @@ function ManagerButton({isManager,isDev,isDark,onSignIn,onSignOut}){
 }
 
 // ── HomeGrid ──────────────────────────────────────────────────────────────────
-function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSignOut,onToggleTheme,setItems,hasShownWelcomeRef,bannerOffset=0,onDevUnlock}){
+function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSignOut,onToggleTheme,hasShownWelcomeRef,bannerOffset=0,onDevUnlock}){
   const tapCountRef=useRef(0);
   const tapTimerRef=useRef(null);
   const [search,setSearch]=useState("");
   const [searchResults,setSearchResults]=useState([]);
   const [showExport,setShowExport]=useState(false);
-  const [showDataModal,setShowDataModal]=useState(false);
-  const [showPasteModal,setShowPasteModal]=useState(false);
-  const [pasteText,setPasteText]=useState("");
   const [showWelcome,setShowWelcome]=useState(false);
-  const fileInputRef=useRef(null);
 
   useEffect(()=>{
     if(isDev&&!hasShownWelcomeRef.current.dev){
@@ -786,20 +782,6 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
     if(!val.trim()){setSearchResults([]);return;}
     setSearchResults(items.filter(i=>i.name.toLowerCase().includes(val.toLowerCase())).slice(0,10));
   }
-  function downloadCSV(){
-    const csv=buildCSV(items);
-    const blob=new Blob([csv],{type:"text/csv"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download="all-pricing.csv";a.click();
-    URL.revokeObjectURL(url);setShowExport(false);
-  }
-  function handleImport(e){
-    const file=e.target.files[0];if(!file)return;
-    const reader=new FileReader();
-    reader.onload=ev=>{try{alert(`Import preview: ${ev.target.result.split("\n").length-1} rows found. (Full import wired in real app.)`);} catch{}};
-    reader.readAsText(file);e.target.value="";setShowExport(false);
-  }
-
   return(
     <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease",paddingTop:bannerOffset,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`
@@ -847,30 +829,21 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
               style={{width:42,height:42,borderRadius:12,background:showExport?(isDark?"#252c40":"#dcdccc"):(isDark?"#1a1f2e":"#e6e6d8"),border:isDark?"1px solid #2a3050":"1px solid #c8c8b8",color:isDark?"#e0e4ee":"#2a2a22",fontSize:20,lineHeight:1,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",transition:"background 0.15s"}}>⋯</button>
             {showExport&&<div onClick={()=>setShowExport(false)} style={{position:"fixed",inset:0,zIndex:250}}/>}
             {showExport&&(()=>{
-              const txt=isDark?"#f0f0f0":"#1a1a1a",lab=isDark?"#4a5568":"#909080",line=isDark?"#2a3050":"#e0e0d0";
+              const txt=isDark?"#f0f0f0":"#1a1a1a",line=isDark?"#2a3050":"#e0e0d0";
               const item=(icon,label,onClick,color)=>(
                 <button onClick={()=>{setShowExport(false);onClick();}} className="export-item"
                   style={{display:"flex",alignItems:"center",gap:10,width:"100%",minHeight:44,padding:"10px 12px",background:"none",border:"none",color:color||txt,fontSize:14,fontFamily:"inherit",cursor:"pointer",borderRadius:9,textAlign:"left"}}>
                   <span style={{width:20,textAlign:"center"}}>{icon}</span>{label}
                 </button>
               );
-              const head=t=><div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:lab,padding:"8px 12px 2px"}}>{t}</div>;
               return(
                 <div onClick={e=>e.stopPropagation()} style={{position:"absolute",right:0,top:50,background:isDark?"#141a28":"#fff",border:`1px solid ${line}`,borderRadius:14,padding:6,zIndex:300,width:236,boxShadow:"0 10px 32px rgba(0,0,0,0.4)",animation:"slideDown 0.18s ease"}}>
                   {item(isDark?"☀️":"🌙",isDark?"Light mode":"Dark mode",onToggleTheme)}
-                  <div style={{height:1,background:line,margin:"4px 0"}}/>
-                  {head("Export")}
-                  {item("📥","Download all as CSV",downloadCSV)}
-                  {item("📤","Show my data",()=>setShowDataModal(true))}
-                  {head("Import")}
-                  {item("📂","Import from CSV",()=>fileInputRef.current?.click())}
-                  {item("📋","Paste data",()=>setShowPasteModal(true))}
                   <div style={{height:1,background:line,margin:"4px 0"}}/>
                   {isManager?item("🔒","Sign out",onSignOut,"#e07070"):item("🔑","Manager sign in",onSignIn,isDark?"#f0c040":"#9a7200")}
                 </div>
               );
             })()}
-            <input ref={fileInputRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
           </div>
         </div>
         <div style={{fontSize:28,fontWeight:700,lineHeight:1.15,color:isDark?"#f0f0f0":"#1a1a1a",margin:"2px 0 4px",letterSpacing:"-0.01em"}}>Price Manager</div>
@@ -952,31 +925,6 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
         })()}
       </div>
 
-      {/* Data modal */}
-      {showDataModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeIn 0.2s ease"}}>
-          <div style={{background:isDark?"#1a1f2e":"#fff",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:16,padding:22,width:"100%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column",animation:"modalIn 0.25s ease"}}>
-            <div style={{fontSize:17,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a",marginBottom:10}}>📋 Your Data</div>
-            <textarea readOnly value={JSON.stringify(items,null,2)} style={{flex:1,minHeight:200,background:isDark?"#0f1117":"#f8f8f0",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,padding:12,color:isDark?"#f0f0f0":"#1a1a1a",fontSize:11,fontFamily:"monospace",resize:"none"}} onFocus={e=>e.target.select()}/>
-            <div style={{display:"flex",gap:10,marginTop:12}}>
-              <button onClick={()=>setShowDataModal(false)} style={{flex:1,padding:11,background:"transparent",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,color:isDark?"#6b7280":"#909080",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
-              <button onClick={()=>navigator.clipboard.writeText(JSON.stringify(items)).catch(()=>{})} style={{flex:2,padding:11,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copy</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {showPasteModal&&(
-        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeIn 0.2s ease"}}>
-          <div style={{background:isDark?"#1a1f2e":"#fff",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:16,padding:22,width:"100%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column",animation:"modalIn 0.25s ease"}}>
-            <div style={{fontSize:17,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a",marginBottom:10}}>📋 Paste Data</div>
-            <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="Paste JSON data here..." style={{flex:1,minHeight:200,background:isDark?"#0f1117":"#f8f8f0",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,padding:12,color:isDark?"#f0f0f0":"#1a1a1a",fontSize:11,fontFamily:"monospace",resize:"none"}}/>
-            <div style={{display:"flex",gap:10,marginTop:12}}>
-              <button onClick={()=>{setShowPasteModal(false);setPasteText("");}} style={{flex:1,padding:11,background:"transparent",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,color:isDark?"#6b7280":"#909080",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-              <button onClick={()=>{try{const p=JSON.parse(pasteText);if(Array.isArray(p)){setItems(p);setShowPasteModal(false);setPasteText("");}}catch{alert("Invalid JSON");}}} style={{flex:2,padding:11,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Import</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1591,6 +1539,94 @@ function BugsPage({T,isManager,onRequireManager,managerDisabled=false}){
   );
 }
 
+// ── Dev console: item data export / import ────────────────────────────────────
+function DevDataTools({items,setItems}){
+  const [view,setView]=useState(null); // null | "show" | "paste"
+  const [pasteText,setPasteText]=useState("");
+  const fileRef=useRef(null);
+  function downloadCSV(){
+    const url=URL.createObjectURL(new Blob([buildCSV(items)],{type:"text/csv"}));
+    const a=document.createElement("a");a.href=url;a.download="all-pricing.csv";a.click();
+    URL.revokeObjectURL(url);
+  }
+  function handleImport(e){
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>alert(`Import preview: ${ev.target.result.split("\n").length-1} rows found. (Full import not wired yet.)`);
+    reader.readAsText(file);e.target.value="";
+  }
+  const btn={minHeight:44,padding:"10px",background:`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"};
+  const area={width:"100%",minHeight:180,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:10,color:DT.text,fontSize:11,fontFamily:"'Courier New',monospace",resize:"vertical",marginTop:10};
+  return(
+    <>
+      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// data.items</div>
+      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
+        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Item Data</div>
+        <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em"}}>// {items.length} items · export or import</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          <button onClick={downloadCSV} style={btn}>EXPORT_CSV ↓</button>
+          <button onClick={()=>setView(v=>v==="show"?null:"show")} style={btn}>{view==="show"?"✕ HIDE_JSON":"SHOW_JSON"}</button>
+          <button onClick={()=>fileRef.current?.click()} style={btn}>IMPORT_CSV ↑</button>
+          <button onClick={()=>setView(v=>v==="paste"?null:"paste")} style={btn}>{view==="paste"?"✕ CANCEL":"PASTE_JSON"}</button>
+        </div>
+        <input ref={fileRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
+        {view==="show"&&<>
+          <textarea readOnly value={JSON.stringify(items,null,2)} style={area} onFocus={e=>e.target.select()}/>
+          <button onClick={()=>navigator.clipboard.writeText(JSON.stringify(items)).catch(()=>{})} style={{...btn,width:"100%",marginTop:8}}>COPY →</button>
+        </>}
+        {view==="paste"&&<>
+          <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="// paste JSON array here" style={area}/>
+          <button onClick={()=>{try{const p=JSON.parse(pasteText);if(!Array.isArray(p))throw 0;setItems(p);setView(null);setPasteText("");}catch{alert("Invalid JSON (expected an array)");}}} style={{...btn,width:"100%",marginTop:8}}>LOAD →</button>
+        </>}
+      </div>
+    </>
+  );
+}
+
+// ── Dev console: quick-time shift presets ─────────────────────────────────────
+function DevShiftPresets({list,onChange,storeHours}){
+  const set=(i,k,v)=>onChange(list.map((p,j)=>j===i?{...p,[k]:v}:p));
+  const auto=shiftPresets(storeHoursFor(storeHours,1)); // Monday's hours as the starting point
+  const field={background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"8px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace",minWidth:0,colorScheme:"dark"};
+  const btn={width:"100%",minHeight:40,padding:"8px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em"};
+  return(
+    <>
+      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.shiftPresets</div>
+      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
+        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Quick-Time Shifts</div>
+        {list.length===0?(<>
+          <div style={{fontSize:11,color:DT.subText,marginBottom:12,lineHeight:1.6,letterSpacing:"0.04em"}}>
+            // automatic: follows each day's store hours<br/>
+            {auto.map(p=><span key={p.label}>// {p.label}: {fmtMin(p.start)} – {fmtMin(p.end)} (Mon)<br/></span>)}
+          </div>
+          <button onClick={()=>onChange(auto.map(p=>({label:p.label,start:minToTime(p.start),end:minToTime(p.end)})))} style={btn}>CUSTOMIZE →</button>
+        </>):(<>
+          <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em"}}>// {list.length} custom · shown as buttons when adding a shift</div>
+          {list.map((p,i)=>(
+            <div key={i} style={{border:`1px solid ${DT.cardBorder}`,borderRadius:8,padding:10,marginBottom:8,display:"grid",gap:8}}>
+              <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                <input value={p.label} onChange={e=>set(i,"label",e.target.value)} placeholder="Name, e.g. Opening" style={{...field,flex:1}}/>
+                <button aria-label={`Delete ${p.label||"preset"}`} onClick={()=>onChange(list.filter((_,j)=>j!==i))}
+                  style={{width:36,height:36,flexShrink:0,background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.red,cursor:"pointer",fontSize:14}}>✕</button>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:6,alignItems:"center"}}>
+                <input type="time" value={p.start} onChange={e=>set(i,"start",e.target.value)} style={field}/>
+                <span style={{color:DT.subText,fontSize:12}}>to</span>
+                <input type="time" value={p.end} onChange={e=>set(i,"end",e.target.value)} style={field}/>
+              </div>
+              {p.start&&p.end&&<div style={{fontSize:10,color:DT.subText,letterSpacing:"0.04em"}}>// {+parseHours(p.start,p.end).toFixed(2)}h{toMin(p.end)<=toMin(p.start)?" · ends next day":""}</div>}
+            </div>
+          ))}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+            <button onClick={()=>onChange([...list,{label:"",start:"09:00",end:"17:00"}])} style={btn}>+ ADD_PRESET</button>
+            <button onClick={()=>onChange([])} style={{...btn,color:DT.subText,borderColor:DT.cardBorder}}>RESET_TO_AUTO</button>
+          </div>
+        </>)}
+      </div>
+    </>
+  );
+}
+
 // ── DevPage ───────────────────────────────────────────────────────────────────
 // ── Notification Banner ───────────────────────────────────────────────────────
 const NOTIF_COLORS={
@@ -1653,7 +1689,7 @@ function StoreBuilderPanel({layout,onSave}){
   return <div ref={ref} style={{marginBottom:24}}/>;
 }
 
-function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,setItems,activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
+function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
   const [showBuilder,setShowBuilder]=useState(false);
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
@@ -1765,6 +1801,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
           </div>
         </div>
         <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+        <DevDataTools items={items} setItems={setItems}/>
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// store.builder</div>
         <div style={{background:DT.cardBg,border:`1px solid ${showBuilder?DT.accent+"55":DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:showBuilder?12:24,transition:"border-color 0.3s"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
@@ -1796,6 +1833,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
             + ADD_ROW →
           </button>
         </div>
+        <DevShiftPresets list={presetList} onChange={l=>onPresetListChange&&onPresetListChange(l)} storeHours={storeHours}/>
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.known [{knownBugs.length}]</div>
         <button onClick={()=>setShowAddBug(v=>!v)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em",marginBottom:12}}>{showAddBug?"✕ CANCEL":"+ ADD_KNOWN_BUG →"}</button>
         {showAddBug&&(
@@ -1996,13 +2034,53 @@ async function deleteShiftFromSupabase(id){
   await sb.from("schedule_shifts").delete().eq("id",id);
 }
 
+function toMin(t){const [h,m]=(t||"0:0").split(":").map(Number);return h*60+(m||0);}
+function minToTime(m){m=((m%1440)+1440)%1440;return `${String(Math.floor(m/60)).padStart(2,"0")}:${String(m%60).padStart(2,"0")}`;}
+// shift as [start,end] minutes; an end before the start means it runs past midnight
+function shiftSpan(s){const a=toMin(s.startTime),b=toMin(s.endTime);return [a,b<=a?b+1440:b];}
 function parseHours(startTime,endTime){
   if(!startTime||!endTime)return 0;
-  const [sh,sm]=startTime.split(":").map(Number);
-  const [eh,em]=endTime.split(":").map(Number);
-  const diff=(eh*60+em)-(sh*60+sm);
-  return Math.max(0,diff/60);
+  const [a,b]=shiftSpan({startTime,endTime});
+  return (b-a)/60;
 }
+// Store hours for a weekday (0=Sun) from the free-text config, e.g. {days:"Mon – Thu",hours:"8 AM – 6:30 PM"}.
+// Returns {open,close} in minutes, or null when closed / unreadable.
+const DAY_ABBR=["sun","mon","tue","wed","thu","fri","sat"];
+function storeHoursFor(storeHours,dow){
+  for(const row of storeHours||[]){
+    const days=(row.days||"").toLowerCase();
+    let hit=/daily|every|all/.test(days);
+    for(const part of days.split(/[,&/]|\band\b/)){
+      const t=[...part.matchAll(/sun|mon|tue|wed|thu|fri|sat/g)].map(m=>DAY_ABBR.indexOf(m[0]));
+      if(t.length===2&&/[-–—]|to|thr/.test(part)){for(let d=t[0];;d=(d+1)%7){if(d===dow)hit=true;if(d===t[1])break;}}
+      else if(t.includes(dow))hit=true;
+    }
+    if(!hit)continue;
+    const times=[...(row.hours||"").matchAll(/(\d{1,2})(?::(\d{2}))?\s*([ap])?/gi)].slice(0,2).map(m=>{
+      let h=+m[1]%(m[3]?12:24);if(m[3]&&m[3].toLowerCase()==="p")h+=12;return h*60+(+m[2]||0);
+    });
+    if(times.length<2)return null;
+    return {open:times[0],close:times[1]<=times[0]?times[1]+1440:times[1]};
+  }
+  return null;
+}
+// one-tap shift presets that follow the store's hours for that day
+function shiftPresets(hrs){
+  if(!hrs)return [];
+  const mid=Math.round((hrs.open+hrs.close)/2/30)*30;
+  return [{label:"Opening",start:hrs.open,end:mid},{label:"Closing",start:mid,end:hrs.close},{label:"Full day",start:hrs.open,end:hrs.close}];
+}
+// stretches of open hours with nobody scheduled (15 min or longer)
+function coverageGaps(dayShifts,hrs){
+  if(!hrs)return [];
+  const spans=dayShifts.map(shiftSpan).sort((a,b)=>a[0]-b[0]);
+  const gaps=[];let t=hrs.open;
+  for(const [a,b] of spans){if(a>t)gaps.push([t,Math.min(a,hrs.close)]);t=Math.max(t,b);if(t>=hrs.close)break;}
+  if(t<hrs.close)gaps.push([t,hrs.close]);
+  return gaps.filter(([a,b])=>b-a>=15);
+}
+function fmtMin(m){return fmt12(minToTime(m)).replace(":00 "," ");}
+const STAFF_HUES=[230,145,25,330,190,50,280,0,100,210];
 function fmt12(t){
   if(!t)return"";
   const [h,m]=t.split(":").map(Number);
@@ -2011,7 +2089,7 @@ function fmt12(t){
   return `${h12}:${String(m).padStart(2,"0")} ${ampm}`;
 }
 
-function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
+function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS,presetList=[]}){
   const now=new Date();
   const currentYear=now.getFullYear();
   const saved=loadMonth();
@@ -2022,6 +2100,11 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
   const [showShiftForm,setShowShiftForm]=useState(false);
   const [editShift,setEditShift]=useState(null);
   const [shiftForm,setShiftForm]=useState({name:"",startTime:"09:00",endTime:"17:00",notes:""});
+  const [staff,setStaff]=useState(null); // [{name,hue}] shared via app_settings.staff_list
+  const [addingName,setAddingName]=useState(false);
+  const [newName,setNewName]=useState("");
+  const [copyAsk,setCopyAsk]=useState(false);
+  const [notice,setNotice]=useState("");
 
   const bg=isDark?"#080b12":"#f0f0e8";
   const card=isDark?"#0f1525":"#ffffff";
@@ -2036,7 +2119,55 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
   // Load shifts from Supabase on mount
   useEffect(()=>{
     fetchShifts().then(data=>{setShifts(data);setShiftsLoading(false);}).catch(()=>setShiftsLoading(false));
+    sb.from("app_settings").select("value").eq("key","staff_list").maybeSingle()
+      .then(({data})=>{try{setStaff(data?.value?JSON.parse(data.value):[]);}catch{setStaff([]);}})
+      .catch(()=>setStaff([]));
   },[]);
+  // First run: build the staff list from names already on the schedule
+  useEffect(()=>{
+    if(staff===null||shiftsLoading||staff.length)return;
+    const seen=new Map();
+    Object.values(shifts).flat().forEach(x=>{const n=(x.name||"").trim().replace(/\s+/g," ");if(n&&!seen.has(n.toLowerCase()))seen.set(n.toLowerCase(),n);});
+    if(seen.size)saveStaff([...seen.values()].map((name,i)=>({name,hue:STAFF_HUES[i%STAFF_HUES.length]})));
+  },[staff,shiftsLoading]);
+
+  function saveStaff(list){
+    setStaff(list);
+    sb.from("app_settings").upsert({key:"staff_list",value:JSON.stringify(list)},{onConflict:"key"}).then(()=>{},()=>{});
+  }
+  function addStaff(raw){
+    const name=raw.trim().replace(/\s+/g," ");if(!name)return null;
+    const list=staff||[];
+    const hit=list.find(x=>x.name.toLowerCase()===name.toLowerCase());if(hit)return hit.name;
+    const used=new Set(list.map(x=>x.hue));
+    saveStaff([...list,{name,hue:STAFF_HUES.find(h=>!used.has(h))??(list.length*67)%360}]);
+    return name;
+  }
+  // the staff-list spelling of a name, so "sam " and "Sam" count as one person
+  function canon(n){const t=(n||"").trim().replace(/\s+/g," ");const p=(staff||[]).find(x=>x.name.toLowerCase()===t.toLowerCase());return p?p.name:t;}
+  function flash(msg){setNotice(msg);setTimeout(()=>setNotice(""),2800);}
+
+  // Last week's shifts for the empty days of the week containing `day` (Sun–Sat)
+  function weekPlan(day){
+    const start=day-new Date(currentYear,month,day).getDay();
+    const at=o=>new Date(currentYear,month,start+o);
+    const key=d=>`${d.getMonth()}-${d.getDate()}`, nice=d=>`${MONTH_NAMES[d.getMonth()].slice(0,3)} ${d.getDate()}`;
+    const plan=[];
+    for(let i=0;i<7;i++){const k=key(at(i)),src=shifts[key(at(i-7))]||[];if(src.length&&!(shifts[k]||[]).length)plan.push({k,src});}
+    return {plan,count:plan.reduce((a,x)=>a+x.src.length,0),from:`${nice(at(-7))} – ${nice(at(-1))}`,to:`${nice(at(0))} – ${nice(at(6))}`};
+  }
+  async function copyLastWeek(){
+    const {plan,count}=weekPlan(focusDay);setCopyAsk(false);
+    try{
+      const added={};
+      for(const {k,src} of plan)added[k]=await Promise.all(src.map(async x=>({...x,id:await saveShiftToSupabase(k,x)})));
+      setShifts(prev=>({...prev,...added}));
+      flash(`Copied ${count} shift${count!==1?"s":""} from last week`);
+    }catch{
+      fetchShifts().then(setShifts).catch(()=>{});
+      flash("Couldn't copy every shift. Check your connection.");
+    }
+  }
 
   const firstDay=new Date(currentYear,month,1).getDay();
   const daysInMonth=new Date(currentYear,month+1,0).getDate();
@@ -2080,7 +2211,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
   Object.entries(shifts).forEach(([k,arr])=>{
     if(!k.startsWith(`${month}-`))return;
     arr.forEach(s=>{
-      const name=s.name.trim();
+      const name=canon(s.name);
       if(!name)return;
       const hrs=parseHours(s.startTime,s.endTime);
       earnings[name]=(earnings[name]||0)+hrs;
@@ -2088,7 +2219,9 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
   });
 
   function nameColor(name,lightness){
-    const hue=(name.split("").reduce((a,c)=>a+c.charCodeAt(0),0)*47)%360;
+    const n=(name||"").trim().toLowerCase();
+    const p=(staff||[]).find(x=>x.name.toLowerCase()===n);
+    const hue=p?p.hue:(n.split("").reduce((a,c)=>a+c.charCodeAt(0),0)*47)%360;
     return `hsl(${hue},55%,${lightness}%)`;
   }
 
@@ -2104,81 +2237,180 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
   // ── Day detail view ────────────────────────────────────────────────────────
   if(focusDay!==null){
     const daySh=dayShifts(focusDay);
+    const dow=new Date(currentYear,month,focusDay).getDay();
+    const hrs=storeHoursFor(storeHours,dow);
+    const gaps=coverageGaps(daySh,hrs);
+    const autoPresets=shiftPresets(hrs);
+    const presets=presetList.length
+      ?presetList.filter(p=>p.label&&p.start&&p.end).map(p=>{const [start,end]=shiftSpan({startTime:p.start,endTime:p.end});return {label:p.label,start,end};})
+      :autoPresets;
+    const dayHrs=daySh.reduce((a,x)=>a+parseHours(x.startTime,x.endTime),0);
+    const week=weekPlan(focusDay);
+    const green=isDark?"#4aaa4a":"#2a7a2a", red="#e07070";
+    const label={fontSize:11,color:sub,marginBottom:6,textTransform:"uppercase",letterSpacing:"0.06em"};
+    const chip=(on,c)=>({minHeight:38,padding:"7px 13px",borderRadius:19,border:`1px solid ${on?(c||accent):border}`,background:on?(c||accent):"transparent",color:on?"#fff":text,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"});
+    const staffNames=(staff||[]).map(x=>x.name);
+    const pickNames=shiftForm.name.trim()&&!staffNames.some(n=>n.toLowerCase()===shiftForm.name.trim().toLowerCase())?[...staffNames,shiftForm.name.trim()]:staffNames;
+    const blankForm=()=>({name:"",startTime:autoPresets[2]?minToTime(autoPresets[2].start):"09:00",endTime:autoPresets[2]?minToTime(autoPresets[2].end):"17:00",notes:""});
+    const commitNewName=()=>{const n=addStaff(newName);if(n)setShiftForm(f=>({...f,name:n}));setAddingName(false);setNewName("");};
     return(
       <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
         <style>{`@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}} @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
         <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"16px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <button onClick={()=>{setFocusDay(null);setShowShiftForm(false);setEditShift(null);}} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:text,fontFamily:"inherit",flexShrink:0}}>←</button>
-            <div style={{flex:1}}>
-              <div style={{fontSize:18,fontWeight:700,color:accent}}>{MONTH_NAMES[month]} {focusDay}</div>
-              <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{daySh.length} shift{daySh.length!==1?"s":""}</div>
+            <button aria-label="Back to month" onClick={()=>{setFocusDay(null);setShowShiftForm(false);setEditShift(null);setCopyAsk(false);setAddingName(false);}} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:10,width:40,height:40,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:text,fontFamily:"inherit"}}>←</button>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:20,fontWeight:700,color:accent,lineHeight:1.2}}>{["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][dow]}, {MONTH_NAMES[month].slice(0,3)} {focusDay}</div>
+              <div style={{fontSize:12,color:sub,marginTop:2}}>{hrs?`Open ${fmtMin(hrs.open)} – ${fmtMin(hrs.close)}`:"Store closed"}{daySh.length>0&&` · ${daySh.length} shift${daySh.length!==1?"s":""} · ${+dayHrs.toFixed(1)}h`}</div>
             </div>
-            <button onClick={()=>{setEditShift(null);setShiftForm({name:"",startTime:"09:00",endTime:"17:00",notes:""});setShowShiftForm(v=>!v);}} className="tap-btn"
-              style={{padding:"8px 14px",background:showShiftForm?"transparent":accent,border:`1px solid ${showShiftForm?border:accent}`,borderRadius:20,cursor:"pointer",fontFamily:"inherit",color:showShiftForm?sub:"#fff",fontSize:12,fontWeight:700,transition:"all 0.2s"}}>
+            <button onClick={()=>{setEditShift(null);setShiftForm(blankForm());setAddingName(false);setShowShiftForm(v=>!v);}} className="tap-btn"
+              style={{flexShrink:0,minHeight:40,padding:"8px 14px",background:showShiftForm?"transparent":accent,border:`1px solid ${showShiftForm?border:accent}`,borderRadius:20,cursor:"pointer",fontFamily:"inherit",color:showShiftForm?sub:"#fff",fontSize:13,fontWeight:700}}>
               {showShiftForm?"✕ Cancel":"+ Add Shift"}
             </button>
           </div>
         </div>
         <div style={{padding:"14px"}}>
+          {notice&&<div style={{background:isDark?"#0f1a12":"#eef8ee",border:`1px solid ${green}55`,color:green,borderRadius:10,padding:"10px 12px",fontSize:13,marginBottom:12,animation:"slideDown 0.2s ease"}}>{notice}</div>}
+
           {showShiftForm&&(
             <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.22s cubic-bezier(0.34,1.1,0.64,1)"}}>
-              <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Name</div>
-              <input value={shiftForm.name} onChange={e=>setShiftForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Alex" style={{...inp,marginBottom:10}}/>
+              <div style={label}>Who</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
+                {pickNames.map(n=>{const on=shiftForm.name.trim().toLowerCase()===n.toLowerCase();return(
+                  <button key={n} onClick={()=>setShiftForm(f=>({...f,name:n}))} style={chip(on,nameColor(n,isDark?40:45))}>{n}</button>
+                );})}
+                {addingName?(
+                  <div style={{display:"flex",gap:6,width:"100%"}}>
+                    <input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&commitNewName()} placeholder="Name" style={{...inp,flex:1}}/>
+                    <button onClick={commitNewName} style={chip(true)}>Add</button>
+                  </div>
+                ):(
+                  <button onClick={()=>{setAddingName(true);setNewName("");}} style={{...chip(false),borderStyle:"dashed",color:sub}}>+ New person</button>
+                )}
+              </div>
+              {presets.length>0&&<>
+                <div style={label}>Quick times</div>
+                <div style={{display:"grid",gridTemplateColumns:`repeat(${Math.min(3,presets.length)},minmax(0,1fr))`,gap:6,marginBottom:12}}>
+                  {presets.map(p=>{const on=shiftForm.startTime===minToTime(p.start)&&shiftForm.endTime===minToTime(p.end);const t=m=>fmtMin(m).replace(/ (A|P)M/,(_,x)=>x.toLowerCase());return(
+                    <button key={p.label} onClick={()=>setShiftForm(f=>({...f,startTime:minToTime(p.start),endTime:minToTime(p.end)}))}
+                      style={{...chip(on),borderRadius:12,padding:"8px 4px",display:"flex",flexDirection:"column",alignItems:"center",gap:2,whiteSpace:"normal",lineHeight:1.2}}>
+                      <span>{p.label}</span>
+                      <span style={{fontWeight:400,fontSize:10.5,opacity:0.75}}>{t(p.start)}–{t(p.end)}</span>
+                    </button>
+                  );})}
+                </div>
+              </>}
               <div style={{display:"flex",gap:8,marginBottom:10}}>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Start</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={label}>Start</div>
                   <input type="time" value={shiftForm.startTime} onChange={e=>setShiftForm(f=>({...f,startTime:e.target.value}))} style={inp}/>
                 </div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>End</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={label}>End</div>
                   <input type="time" value={shiftForm.endTime} onChange={e=>setShiftForm(f=>({...f,endTime:e.target.value}))} style={inp}/>
                 </div>
               </div>
               {(()=>{
-                const hrs=parseHours(shiftForm.startTime,shiftForm.endTime);
-                return hrs>0?(
-                  <div style={{background:isDark?"#0a1a0a":"#f0faf0",border:`1px solid ${isDark?"#1a3a1a":"#b0d0b0"}`,borderRadius:8,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:12,color:isDark?"#4aaa4a":"#2a7a2a"}}>{hrs.toFixed(1)}h @ $15/hr</span>
-                    <span style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(hrs*HOURLY_RATE).toFixed(2)} before tax</span>
+                const h=parseHours(shiftForm.startTime,shiftForm.endTime);
+                const overnight=toMin(shiftForm.endTime)<=toMin(shiftForm.startTime);
+                return h>0?(
+                  <div style={{background:isDark?"#0a1a0a":"#f0faf0",border:`1px solid ${isDark?"#1a3a1a":"#b0d0b0"}`,borderRadius:8,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:12,color:green}}>{+h.toFixed(2)}h @ ${HOURLY_RATE}/hr{overnight&&" · ends next day"}</span>
+                    <span style={{fontSize:14,fontWeight:700,color:green}}>${(h*HOURLY_RATE).toFixed(2)}</span>
                   </div>
                 ):null;
               })()}
-              <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes <span style={{opacity:0.5,fontWeight:400,textTransform:"none",letterSpacing:0}}>— optional</span></div>
+              <div style={label}>Notes <span style={{opacity:0.6,textTransform:"none",letterSpacing:0}}>(optional)</span></div>
               <textarea value={shiftForm.notes} onChange={e=>setShiftForm(f=>({...f,notes:e.target.value}))} placeholder="Any notes…" style={{...inp,minHeight:54,resize:"none",lineHeight:1.5,marginBottom:12}}/>
-              <button onClick={addOrUpdateShift} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-                {editShift!==null?"Save Changes":"Add Shift"}
+              <button onClick={addOrUpdateShift} disabled={!shiftForm.name.trim()} style={{width:"100%",minHeight:46,padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:shiftForm.name.trim()?"pointer":"default",opacity:shiftForm.name.trim()?1:0.45,fontFamily:"inherit"}}>
+                {!shiftForm.name.trim()?"Pick who's working":editShift!==null?"Save Changes":"Add Shift"}
               </button>
             </div>
           )}
+
+          {(hrs||daySh.length>0)&&(()=>{
+            const spans=daySh.map(shiftSpan);
+            let lo=Math.min(...(hrs?[hrs.open]:[]),...spans.map(x=>x[0])), hi=Math.max(...(hrs?[hrs.close]:[]),...spans.map(x=>x[1]));
+            lo=Math.floor(lo/60)*60; hi=Math.max(lo+60,Math.ceil(hi/60)*60);
+            const len=hi-lo, L=m=>`${(m-lo)/len*100}%`, W=(a,b)=>`${(b-a)/len*100}%`;
+            const step=len<=480?60:len<=900?120:180, ticks=[];
+            for(let m=lo;m<=hi;m+=step)ticks.push(m);
+            const short=m=>{const h=Math.floor(m/60)%24;return `${h%12||12}${h<12?"a":"p"}`;};
+            const track={position:"relative",flex:1,height:26,borderRadius:7,background:isDark?"#0a0f1e":"#f2f2ea",overflow:"hidden"};
+            const band=hrs&&<div style={{position:"absolute",top:0,bottom:0,left:L(hrs.open),width:W(hrs.open,hrs.close),background:"rgba(124,131,253,0.1)"}}/>;
+            const nameCol={width:62,flexShrink:0,fontSize:11,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"};
+            return(
+              <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:14,marginBottom:12}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                  <span style={{...label,marginBottom:0}}>Coverage</span>
+                  {hrs&&<span style={{fontSize:12,fontWeight:700,color:gaps.length?red:green}}>{gaps.length?`⚠ ${gaps.length} gap${gaps.length!==1?"s":""}`:"✓ Fully covered"}</span>}
+                </div>
+                {daySh.map((x,i)=>{const [a,b]=spans[i];return(
+                  <div key={x.id||i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <div style={{...nameCol,color:text}}>{canon(x.name)}</div>
+                    <div style={track}>{band}
+                      <div style={{position:"absolute",top:3,bottom:3,left:L(a),width:W(a,b),borderRadius:5,background:nameColor(x.name,isDark?40:48),display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"#fff",whiteSpace:"nowrap",overflow:"hidden"}}>{short(a)}–{short(b)}</div>
+                    </div>
+                  </div>
+                );})}
+                {hrs&&(
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+                    <div style={{...nameCol,color:sub}}>Open hours</div>
+                    <div style={{...track,height:10,borderRadius:5}}>
+                      <div style={{position:"absolute",top:0,bottom:0,left:L(hrs.open),width:W(hrs.open,hrs.close),background:green,opacity:0.7}}/>
+                      {gaps.map(([a,b],i)=><div key={i} style={{position:"absolute",top:0,bottom:0,left:L(a),width:W(a,b),background:red}}/>)}
+                    </div>
+                  </div>
+                )}
+                <div style={{display:"flex",gap:8}}>
+                  <div style={{width:62,flexShrink:0}}/>
+                  <div style={{position:"relative",flex:1,height:14}}>
+                    {ticks.map(m=><span key={m} style={{position:"absolute",left:L(m),transform:m===lo?"none":m>=hi?"translateX(-100%)":"translateX(-50%)",fontSize:9,color:sub,whiteSpace:"nowrap"}}>{short(m)}</span>)}
+                  </div>
+                </div>
+                {gaps.length>0&&<div style={{marginTop:10,paddingTop:10,borderTop:`1px solid ${border}`,fontSize:12,color:red,lineHeight:1.7}}>
+                  {gaps.map(([a,b],i)=><div key={i}>Nobody scheduled {fmtMin(a)} – {fmtMin(b)}</div>)}
+                </div>}
+              </div>
+            );
+          })()}
+
+          {week.plan.length>0&&(copyAsk?(
+            <div style={{background:card,border:`1px solid ${accent}55`,borderRadius:14,padding:14,marginBottom:12,animation:"slideDown 0.2s ease"}}>
+              <div style={{fontSize:14,fontWeight:700,color:text,marginBottom:4}}>Copy last week's shifts?</div>
+              <div style={{fontSize:12,color:sub,lineHeight:1.5,marginBottom:12}}>{week.count} shift{week.count!==1?"s":""} from {week.from} will go into {week.plan.length} empty day{week.plan.length!==1?"s":""} of {week.to}. Days that already have shifts aren't changed.</div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setCopyAsk(false)} style={{flex:1,minHeight:44,background:"transparent",border:`1px solid ${border}`,borderRadius:10,color:sub,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                <button onClick={copyLastWeek} style={{flex:2,minHeight:44,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copy {week.count} shift{week.count!==1?"s":""}</button>
+              </div>
+            </div>
+          ):(
+            <button onClick={()=>setCopyAsk(true)} style={{width:"100%",minHeight:44,marginBottom:12,background:"transparent",border:`1px dashed ${border}`,borderRadius:12,color:sub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>⟳ Copy last week's shifts into this week</button>
+          ))}
+
           {daySh.length===0&&!showShiftForm&&(
-            <div style={{textAlign:"center",color:sub,padding:"50px 20px"}}>
+            <div style={{textAlign:"center",color:sub,padding:"36px 20px"}}>
               <div style={{fontSize:32,marginBottom:8}}>📋</div>
               <div style={{fontSize:14}}>No shifts scheduled. Tap + Add Shift.</div>
             </div>
           )}
-          {daySh.map((s,idx)=>{
-            const hrs=parseHours(s.startTime,s.endTime);
+          {daySh.map((x,idx)=>{
+            const h=parseHours(x.startTime,x.endTime);
             return(
-              <div key={s.id||idx} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:14,marginBottom:10,animation:`pageEnter 0.25s cubic-bezier(0.34,1.1,0.64,1) ${idx*0.06}s both`,cursor:"default"}}>
-                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:s.notes?6:0}}>
-                  <div style={{width:32,height:32,borderRadius:"50%",background:nameColor(s.name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                    <span style={{fontSize:13,fontWeight:700,color:nameColor(s.name,isDark?80:20)}}>{s.name.trim()[0]?.toUpperCase()||"?"}</span>
+              <div key={x.id||idx} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:"12px 12px 12px 14px",marginBottom:10,animation:`pageEnter 0.25s cubic-bezier(0.34,1.1,0.64,1) ${idx*0.06}s both`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:34,height:34,borderRadius:"50%",background:nameColor(x.name,isDark?30:80),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <span style={{fontSize:14,fontWeight:700,color:nameColor(x.name,isDark?80:25)}}>{x.name.trim()[0]?.toUpperCase()||"?"}</span>
                   </div>
-                  <div style={{flex:1}}>
-                    <div style={{fontSize:15,fontWeight:600,color:text}}>{s.name}</div>
-                    <div style={{fontSize:12,color:sub}}>{fmt12(s.startTime)} – {fmt12(s.endTime)} · {hrs.toFixed(1)}h</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:15,fontWeight:600,color:text}}>{canon(x.name)}</div>
+                    <div style={{fontSize:12,color:sub}}>{fmt12(x.startTime)} – {fmt12(x.endTime)} · {+h.toFixed(2)}h</div>
                   </div>
-                  <div style={{textAlign:"right",marginRight:4}}>
-                    <div style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(hrs*HOURLY_RATE).toFixed(2)}</div>
-                    <div style={{fontSize:10,color:sub}}>before tax</div>
-                  </div>
-                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
-                    <button onClick={()=>{setEditShift(idx);setShiftForm({name:s.name,startTime:s.startTime,endTime:s.endTime,notes:s.notes||""});setShowShiftForm(true);}} style={{background:"none",border:"none",color:sub,fontSize:14,cursor:"pointer",padding:2}}>✏️</button>
-                    <button onClick={()=>deleteShift(focusDay,idx)} style={{background:"none",border:"none",color:"#e07070",fontSize:14,cursor:"pointer",padding:2}}>🗑️</button>
-                  </div>
+                  <div style={{fontSize:14,fontWeight:700,color:green}}>${(h*HOURLY_RATE).toFixed(2)}</div>
+                  <button aria-label="Edit shift" onClick={()=>{setEditShift(idx);setShiftForm({name:canon(x.name),startTime:x.startTime,endTime:x.endTime,notes:x.notes||""});setAddingName(false);setShowShiftForm(true);window.scrollTo({top:0,behavior:"smooth"});}} style={{width:40,height:40,flexShrink:0,background:"none",border:`1px solid ${border}`,borderRadius:10,color:sub,fontSize:14,cursor:"pointer"}}>✏️</button>
+                  <button aria-label="Delete shift" onClick={()=>deleteShift(focusDay,idx)} style={{width:40,height:40,flexShrink:0,background:"none",border:`1px solid ${border}`,borderRadius:10,color:red,fontSize:14,cursor:"pointer"}}>🗑️</button>
                 </div>
-                {s.notes&&<div style={{fontSize:12,color:sub,padding:"6px 10px",background:isDark?"#0a0a18":"#f4f4f0",borderRadius:7,lineHeight:1.4}}>📝 {s.notes}</div>}
+                {x.notes&&<div style={{fontSize:12,color:sub,padding:"6px 10px",marginTop:8,background:isDark?"#0a0a18":"#f4f4f0",borderRadius:7,lineHeight:1.4}}>📝 {x.notes}</div>}
               </div>
             );
           })}
@@ -2186,7 +2418,6 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
       </div>
     );
   }
-
   // ── Month calendar view ────────────────────────────────────────────────────
   return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
@@ -2238,11 +2469,13 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
           {cells.map((day,i)=>{
             if(!day) return <div key={`e${i}`}/>;
             const sh=dayShifts(day);
-            const names=[...new Set(sh.map(s=>s.name.trim()).filter(Boolean))];
+            const names=[...new Set(sh.map(s=>canon(s.name)).filter(Boolean))];
             const isToday=now.getFullYear()===currentYear&&month===now.getMonth()&&day===now.getDate();
+            const gap=sh.length>0&&coverageGaps(sh,storeHoursFor(storeHours,new Date(currentYear,month,day).getDay())).length>0;
             return(
-              <div key={day} className="cal-day tap-btn" onClick={()=>setFocusDay(day)}
+              <div key={day} className="cal-day tap-btn" onClick={()=>{setFocusDay(day);setAddingName(false);}}
                 style={{background:card,border:`1px solid ${isToday?accent:border}`,borderRadius:10,padding:"5px 3px",minHeight:62,cursor:"pointer",position:"relative",boxShadow:isToday?`0 0 0 1.5px ${accent}44`:"none"}}>
+                {gap&&<div title="Gap in coverage" style={{position:"absolute",top:5,right:5,width:6,height:6,borderRadius:"50%",background:"#e07070"}}/>}
                 <div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?accent:text,marginBottom:3,textAlign:"center",lineHeight:1}}>{day}</div>
                 <div style={{display:"flex",flexDirection:"column",gap:2}}>
                   {names.slice(0,3).map((name,ni)=>(
@@ -2255,6 +2488,35 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
           })}
         </div>
 
+        {cells.some(d=>d&&dayShifts(d).length&&coverageGaps(dayShifts(d),storeHoursFor(storeHours,new Date(currentYear,month,d).getDay())).length)&&(
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:sub,marginTop:8,paddingLeft:4}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:"#e07070",display:"inline-block"}}/>Open hours with nobody scheduled
+          </div>
+        )}
+        {/* Staff */}
+        <div style={{marginTop:18,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}>
+            <span style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:700}}>Staff</span>
+            <span style={{fontSize:11,color:sub}}>{(staff||[]).length} {(staff||[]).length===1?"person":"people"}</span>
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+            {(staff||[]).map(p=>(
+              <span key={p.name} style={{display:"inline-flex",alignItems:"center",gap:6,padding:"0 2px 0 11px",minHeight:38,borderRadius:19,background:nameColor(p.name,isDark?16:93),border:`1px solid ${nameColor(p.name,isDark?30:80)}`,fontSize:13,color:text}}>
+                <span style={{width:8,height:8,borderRadius:"50%",background:nameColor(p.name,50)}}/>{p.name}
+                <button aria-label={`Remove ${p.name}`} onClick={()=>saveStaff(staff.filter(x=>x.name!==p.name))} style={{width:32,height:32,background:"none",border:"none",color:sub,fontSize:16,cursor:"pointer",borderRadius:16}}>×</button>
+              </span>
+            ))}
+            {addingName?(
+              <div style={{display:"flex",gap:6,width:"100%"}}>
+                <input autoFocus value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){addStaff(newName);setNewName("");setAddingName(false);}}} placeholder="Name" style={{...inp,flex:1}}/>
+                <button onClick={()=>{addStaff(newName);setNewName("");setAddingName(false);}} style={{minHeight:38,padding:"7px 14px",borderRadius:19,border:"none",background:accent,color:"#fff",fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Add</button>
+              </div>
+            ):(
+              <button onClick={()=>{setAddingName(true);setNewName("");}} style={{minHeight:38,padding:"7px 13px",borderRadius:19,border:`1px dashed ${border}`,background:"transparent",color:sub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>+ Add person</button>
+            )}
+          </div>
+          {(staff||[]).length>0&&<div style={{fontSize:11,color:sub,marginTop:10}}>Removing someone keeps their past shifts.</div>}
+        </div>
         {/* Earnings summary — weekly + monthly */}
         {Object.keys(earnings).length>0&&(()=>{
           const SS_RATE=0.062, MED_RATE=0.0145;
@@ -2350,6 +2612,17 @@ async function fetchStoreHours(){
 }
 async function saveStoreHours(h){
   await sb.from("app_settings").upsert({key:"store_hours",value:JSON.stringify(h)},{onConflict:"key"});
+}
+// Custom quick-time shifts [{label,start:"HH:MM",end:"HH:MM"}]; an empty list means "follow store hours"
+async function fetchShiftPresetList(){
+  try{
+    const {data}=await sb.from("app_settings").select("value").eq("key","shift_presets").maybeSingle();
+    const parsed=data?.value?JSON.parse(data.value):[];
+    return Array.isArray(parsed)?parsed:[];
+  }catch{return [];}
+}
+async function saveShiftPresetList(list){
+  await sb.from("app_settings").upsert({key:"shift_presets",value:JSON.stringify(list)},{onConflict:"key"});
 }
 
 async function fetchActiveNotif(){
@@ -3155,6 +3428,7 @@ export default function App(){
   const [managerDisabled,setManagerDisabled]=useState(false);
   const [showMgrDisabledModal,setShowMgrDisabledModal]=useState(false);
   const [storeHours,setStoreHours]=useState(DEFAULT_HOURS);
+  const [presetList,setPresetList]=useState([]);
   const [activeNotif,setActiveNotif]=useState(null);
   const [showMore,setShowMore]=useState(false);
   const [layout,setLayout]=useState(DEFAULT_LAYOUT);
@@ -3186,6 +3460,7 @@ export default function App(){
         // Load store hours
         const hours=await fetchStoreHours();
         setStoreHours(hours);
+        setPresetList(await fetchShiftPresetList());
         // Store layout saved by the dev Store Builder (falls back to the built-in map)
         try{
           const {data:lay}=await sb.from("app_settings").select("value").eq("key","store_layout").maybeSingle();
@@ -3349,15 +3624,15 @@ export default function App(){
       {page==="pricing"&&(
         selectedCategory
           ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
-          :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef} bannerOffset={bannerOffset} onDevUnlock={()=>setShowPinModal(true)}/>
+          :<HomeGrid items={items} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef} bannerOffset={bannerOffset} onDevUnlock={()=>setShowPinModal(true)}/>
       )}
-      {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours} bannerOffset={bannerOffset}/>}
+      {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours} presetList={presetList} bannerOffset={bannerOffset}/>}
       {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
       {page==="checklists"&&<ChecklistsPage isDev={isDev} isDark={isDark} bannerOffset={bannerOffset}/>}
       {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager} isDev={isDev}/>}
       {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} presetList={presetList} onPresetListChange={l=>{setPresetList(l);saveShiftPresetList(l);}} setItems={setItems} items={items} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
       </PageErrorBoundary>
       <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
       <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
