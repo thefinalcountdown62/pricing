@@ -502,7 +502,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
   const oos=item.outOfStock;
   const isPackSub=PACK_SUBS.includes(item.subcategory);
   const isWineSub=WINE_SUBS.includes(item.subcategory);
-  const total=item.price+(item.deposit||0);
+  const todayPrice=priceOn(item), total=todayPrice+(item.deposit||0);
   const hasInventory=item.inventory!=null;
   const isLowStock=hasInventory&&item.inventory>0&&item.inventory<=5;
   const zoneName=layout.zones.find(z=>z.key===item.mapZone)?.label||item.mapZone;
@@ -586,9 +586,9 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
             {isPackSub&&item.packSize&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>{item.packSize}</span>}
             {isPackSub&&item.containerType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>{item.containerType==="Can"?"🥫 Can":"🍶 Bottle"}</span>}
             {isWineSub&&item.wineType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"1px 6px",fontSize:10.5,color:T.badgeText}}>🍷 {item.wineType}</span>}
-            {item.subcategory==="newspapers"&&item.days&&(()=>{const today=item.days.includes(String(new Date().getDay()));return(
-              <span style={{background:today?"#4aaa4a22":T.badge,border:`1px solid ${today?"#4aaa4a66":T.badgeBorder}`,borderRadius:6,padding:"1px 7px",fontSize:11,fontWeight:600,color:today?"#5fc25f":T.badgeText}}>📅 {daysLabel(item.days)}{today&&" · today"}</span>
-            );})()}
+            {priceSchedule(item).map(x=>{const today=x.days.includes(String(new Date().getDay()));return(
+              <span key={x.days} style={{background:today?"#4aaa4a22":T.badge,border:`1px solid ${today?"#4aaa4a66":T.badgeBorder}`,borderRadius:6,padding:"1px 7px",fontSize:11,fontWeight:600,color:today?"#5fc25f":T.badgeText,fontVariantNumeric:"tabular-nums"}}>{daysLabel(x.days)} ${x.price.toFixed(2)}</span>
+            );})}
             {hasInventory&&<span style={{background:isLowStock?"#e67e2222":oos?"#e74c3c22":T.badge,border:`1px solid ${isLowStock?"#e67e2244":oos?"#e74c3c44":T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:isLowStock?"#e67e22":oos?"#e74c3c":T.badgeText}}>📦 {item.inventory} left</span>}
             {item.gilliesRecommendation&&<span style={{background:"#f0c04022",border:"1px solid #f0c04055",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#f0c040",fontWeight:600}}>⭐ Gillie's Pick</span>}
             {item.location&&<span style={{fontSize:11,color:T.sub,display:"flex",alignItems:"center",gap:3}}>📍 {item.location}</span>}
@@ -601,7 +601,8 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
           </div>
         </div>
         <div style={{textAlign:"right",paddingLeft:12,flexShrink:0}}>
-          <div style={{fontSize:25,fontWeight:800,lineHeight:1.05,color:oos?T.sub:T.accent,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.01em"}}>${item.price.toFixed(2)}</div>
+          <div style={{fontSize:25,fontWeight:800,lineHeight:1.05,color:oos?T.sub:T.accent,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.01em"}}>${todayPrice.toFixed(2)}</div>
+          {item.dayPrices?.length>0&&<div style={{fontSize:10,color:T.sub,marginTop:3,letterSpacing:"0.04em",textTransform:"uppercase"}}>today</div>}
           {item.deposit>0&&<div style={{fontSize:12,fontWeight:700,color:oos?T.sub:"#e8e8e8",marginTop:3,fontVariantNumeric:"tabular-nums"}}>${total.toFixed(2)} <span style={{fontSize:10,fontWeight:400,color:T.sub}}>w/ dep.</span></div>}
         </div>
       </div>
@@ -609,7 +610,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
       <div style={{display:"grid",gridTemplateRows:expanded?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
         <div style={{overflow:"hidden"}}>
           <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,position:"relative",zIndex:2,animation:"pageEnter 0.22s cubic-bezier(0.34,1.1,0.64,1)"}} onClick={e=>e.stopPropagation()}>
-            {item.deposit>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10,fontSize:12,color:T.sub}}><span>Price ${item.price.toFixed(2)} + deposit ${item.deposit.toFixed(2)}</span><span style={{fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
+            {item.deposit>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10,fontSize:12,color:T.sub}}><span>Price ${todayPrice.toFixed(2)} + deposit ${item.deposit.toFixed(2)}</span><span style={{fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
             {item.notes&&<div style={{fontSize:12,color:T.sub,marginBottom:10,padding:"8px 10px",background:T.badge,borderRadius:8,border:`1px solid ${T.badgeBorder}`,lineHeight:1.5}}>📝 {item.notes}</div>}
             {item.expiryDate&&(()=>{
               const days=Math.ceil((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
@@ -883,7 +884,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
                     <div style={{fontSize:13,fontWeight:600,color:isDark?"#f0f0f0":"#1a1a1a"}}>{item.name}</div>
                     <div style={{fontSize:11,color:isDark?"#3a4a60":"#909080"}}>{cat?.icon} {cat?.name}</div>
                   </div>
-                  <div style={{fontSize:15,fontWeight:700,color:cat?.theme.accent||"#f0c040"}}>${item.price.toFixed(2)}</div>
+                  <div style={{fontSize:15,fontWeight:700,color:cat?.theme.accent||"#f0c040"}}>${priceOn(item).toFixed(2)}</div>
                 </div>
               );
             })}
@@ -1018,7 +1019,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
     return()=>clearTimeout(t);
   },[scrollToItem]);
 
-  const emptyForm={name:"",days:"",daysFromName:"",subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",gilliesRecommendation:false,...emptyAlcoholForm(category.subcategories[0].key)};
+  const emptyForm={name:"",dayPrices:[],subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",gilliesRecommendation:false,...emptyAlcoholForm(category.subcategories[0].key)};
   const [form,setForm]=useState(emptyForm);
 
   function setSubcategory(sub){setForm(f=>({...f,subcategory:sub,...emptyAlcoholForm(sub)}));}
@@ -1045,10 +1046,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
   function openEdit(item){
     if(!requireManager())return;
     setEditItem(item);
-    // older newspaper names carry the days, e.g. "Herald (Sunday)": move them into the Days field
-    const m=item.subcategory==="newspapers"&&!item.days&&item.name.match(/^(.*?)\s*\(([^)]*day[^)]*)\)\s*$/i);
-    const fromName=m?[...parseDays(m[2])].sort().join(""):"";
-    setForm({name:fromName?m[1]:item.name,days:item.days||fromName,daysFromName:fromName?m[2]:"",subcategory:item.subcategory,price:String(item.price),location:item.location||"",
+    setForm({name:item.name,dayPrices:(item.dayPrices||[]).map(x=>({days:x.days,price:String(x.price)})),subcategory:item.subcategory,price:String(item.price),location:item.location||"",
       packSize:item.packSize||"6 Pack",containerType:item.containerType||"Can",
       deposit:item.deposit!=null?String(item.deposit):"",wineType:item.wineType||"Red",
       inventory:item.inventory!=null?String(item.inventory):"",
@@ -1069,6 +1067,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
 
   async function handleSave(){
     if(!form.name.trim()||!form.price)return;
+    const dayPricesOut=form.subcategory==="newspapers"
+      ?(form.dayPrices||[]).filter(x=>x.days&&x.price!==""&&!isNaN(+x.price)).map(x=>({days:x.days,price:+x.price})):[];
     setSyncing(true);
     const inventoryCount = form.inventory!==""?parseInt(form.inventory):null;
     const autoOos = inventoryCount===0 ? true : form.outOfStock;
@@ -1080,7 +1080,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       mapZone:form.mapZone||null,
       expiryDate:form.expiryDate||"",
       gilliesRecommendation:form.gilliesRecommendation||false,
-      days:form.subcategory==="newspapers"?form.days||"":"",
+      dayPrices:dayPricesOut,
     };
     const extra=PACK_SUBS.includes(form.subcategory)
       ?{packSize:form.packSize,containerType:form.containerType,deposit:form.deposit?parseFloat(form.deposit):0}
@@ -1094,8 +1094,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       gillies_recommendation:base.gilliesRecommendation||false,
       pack_size:extra.packSize||null, container_type:extra.containerType||null,
       deposit:extra.deposit??null, wine_type:extra.wineType||null,
-      // only newspapers send this column, so nothing else breaks before the column exists
-      ...(form.subcategory==="newspapers"?{days:form.days||null}:{}),
+      // only sent when there are day prices (or were), so nothing else depends on the column existing
+      ...(dayPricesOut.length||editItem?.dayPrices?.length?{day_prices:dayPricesOut.length?JSON.stringify(dayPricesOut):null}:{}),
     };
     const action=editItem?"edited":"added";
     try{
@@ -1293,25 +1293,41 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 ))}
               </div>
             </div>
-            {/* Newspaper days */}
-            {form.subcategory==="newspapers"&&(
-              <div style={{marginBottom:10}}>
-                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Days <span style={{textTransform:"none",letterSpacing:0,opacity:0.8}}>· {daysLabel(form.days)||"which days is this price for?"}</span></div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:4}}>
-                  {["S","M","T","W","T","F","S"].map((l,d)=>{const on=(form.days||"").includes(String(d));return(
-                    <button key={d} aria-label={["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d]} aria-pressed={on}
-                      onClick={()=>setForm(f=>{const ds=new Set(f.days||"");ds.has(String(d))?ds.delete(String(d)):ds.add(String(d));return {...f,days:[...ds].sort().join("")};})}
-                      style={{minHeight:42,borderRadius:8,border:`1px solid ${on?accentColor:T.border}`,background:on?accentColor:"transparent",color:on?baseT.accentText:baseT.sub,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
-                  );})}
-                </div>
-                <div style={{display:"flex",gap:6,marginTop:6,flexWrap:"wrap"}}>
-                  {[["Mon–Sat","123456"],["Sunday","0"],["Every day","0123456"]].map(([l,v])=>(
-                    <button key={l} onClick={()=>setForm(f=>({...f,days:v}))} style={{minHeight:32,padding:"4px 10px",borderRadius:16,border:`1px solid ${form.days===v?accentColor:T.border}`,background:"transparent",color:form.days===v?accentColor:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+            {/* Newspapers: different price on some days */}
+            {form.subcategory==="newspapers"&&(()=>{
+              const rows=form.dayPrices||[];
+              const setRow=(ri,patch)=>setForm(f=>({...f,dayPrices:f.dayPrices.map((r,k)=>k===ri?{...r,...patch}:r)}));
+              const label={fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"};
+              const usual=[0,1,2,3,4,5,6].filter(d=>!rows.some(r=>r.days.includes(String(d)))).join("");
+              return(
+                <div style={{marginBottom:10}}>
+                  <div style={label}>Different price on some days</div>
+                  {rows.map((r,ri)=>(
+                    <div key={ri} style={{border:`1px solid ${T.border}`,borderRadius:10,padding:10,marginBottom:8}}>
+                      <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:4,marginBottom:8}}>
+                        {["S","M","T","W","T","F","S"].map((l,d)=>{
+                          const on=r.days.includes(String(d)), taken=!on&&rows.some((o,k)=>k!==ri&&o.days.includes(String(d)));
+                          return(
+                            <button key={d} disabled={taken} aria-pressed={on} aria-label={["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d]}
+                              onClick={()=>{const ds=new Set(r.days);on?ds.delete(String(d)):ds.add(String(d));setRow(ri,{days:[...ds].sort().join("")});}}
+                              style={{minHeight:40,borderRadius:8,border:`1px solid ${on?accentColor:T.border}`,background:on?accentColor:"transparent",color:on?baseT.accentText:baseT.sub,opacity:taken?0.3:1,fontSize:13,fontWeight:700,cursor:taken?"default":"pointer",fontFamily:"inherit"}}>{l}</button>
+                          );
+                        })}
+                      </div>
+                      <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                        <span style={{fontSize:13,color:baseT.sub,flexShrink:0,minWidth:64}}>{daysLabel(r.days)||"Pick days"}</span>
+                        <input type="number" inputMode="decimal" step="0.01" value={r.price} onChange={e=>setRow(ri,{price:e.target.value})} placeholder="Price" style={{...inp,flex:1}}/>
+                        <button aria-label="Remove this day price" onClick={()=>setForm(f=>({...f,dayPrices:f.dayPrices.filter((_,k)=>k!==ri)}))}
+                          style={{width:40,height:40,flexShrink:0,background:"none",border:`1px solid ${T.border}`,borderRadius:8,color:"#e74c3c",cursor:"pointer",fontSize:14}}>✕</button>
+                      </div>
+                    </div>
                   ))}
+                  {usual&&<button onClick={()=>setForm(f=>({...f,dayPrices:[...(f.dayPrices||[]),{days:"",price:""}]}))}
+                    style={{width:"100%",minHeight:42,background:"transparent",border:`1px dashed ${T.border}`,borderRadius:10,color:baseT.sub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>+ Add a day with a different price</button>}
+                  {rows.some(r=>r.days)&&<div style={{fontSize:11,color:baseT.sub,marginTop:6}}>{usual?`The usual price below is used ${daysLabel(usual)}.`:"Every day has its own price, so the usual price isn't used."}</div>}
                 </div>
-                {form.daysFromName&&<div style={{fontSize:11,color:baseT.sub,marginTop:6}}>Moved "({form.daysFromName})" out of the name. Save to keep it.</div>}
-              </div>
-            )}
+              );
+            })()}
             {/* Pack size */}
             {PACK_SUBS.includes(form.subcategory)&&<>
               <div style={{marginBottom:10}}>
@@ -1344,7 +1360,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             )}
             <div style={{display:"flex",gap:8,marginBottom:PACK_SUBS.includes(form.subcategory)?10:12}}>
               <div style={{flex:1}}>
-                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Price ($)</div>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>{form.subcategory==="newspapers"&&form.dayPrices?.length?"Usual price ($)":"Price ($)"}</div>
                 <input type="number" min="0" step="0.01" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="0.00" style={inp}/>
               </div>
               <div style={{flex:1}}>
@@ -1655,6 +1671,53 @@ function DevShiftPresets({list,onChange,storeHours}){
   );
 }
 
+// ── Dev console: combine old "Paper (Sunday)" / "Paper (Monday-Saturday)" pairs ──
+function DevNewspaperMerge({items,setItems}){
+  const plan=newspaperMergePlan(items);
+  const [state,setState]=useState(null); // null | "ask" | "busy" | message
+  if(!plan.length&&!(typeof state==="string"&&state.startsWith("✓")))return null;
+  async function run(){
+    setState("busy");
+    try{
+      for(const g of plan){
+        const {error}=await sb.from("items").update({name:g.name,day_prices:JSON.stringify(g.dayPrices)}).eq("id",g.keep.id);
+        if(error)throw error;
+        for(const r of g.remove){const {error:e2}=await sb.from("items").delete().eq("id",r.id);if(e2)throw e2;}
+      }
+      const gone=new Set(plan.flatMap(g=>g.remove.map(r=>r.id)));
+      setItems(prev=>prev.filter(i=>!gone.has(i.id)).map(i=>{const g=plan.find(x=>x.keep.id===i.id);return g?{...i,name:g.name,dayPrices:g.dayPrices}:i;}));
+      setState(`✓ Combined ${plan.length} paper${plan.length!==1?"s":""}`);
+    }catch(e){
+      setState(/day_prices/.test(e?.message||"")?"✕ Run the SQL first: alter table items add column if not exists day_prices text;":`✕ ${e?.message||"Something went wrong"}`);
+    }
+  }
+  const btn={width:"100%",minHeight:44,padding:"10px",background:`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"};
+  return(
+    <>
+      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// data.newspapers</div>
+      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
+        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Combine Newspaper Prices</div>
+        <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em",lineHeight:1.6}}>// one item per paper, with its price for each day</div>
+        {plan.map(g=>(
+          <div key={g.keep.id} style={{fontSize:12,color:DT.text,padding:"6px 0",borderTop:`1px solid ${DT.cardBorder}`}}>
+            <b>{g.name}</b>
+            <div style={{color:DT.subText,fontSize:11}}>{priceSchedule({price:+g.keep.price,dayPrices:g.dayPrices}).map(x=>`${daysLabel(x.days)} $${x.price.toFixed(2)}`).join(" · ")} — merges {g.remove.length+1} items</div>
+          </div>
+        ))}
+        <div style={{marginTop:12}}>
+          {state===null&&plan.length>0&&<button onClick={()=>setState("ask")} style={btn}>COMBINE →</button>}
+          {state==="ask"&&<div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
+            <button onClick={()=>setState(null)} style={{...btn,color:DT.subText,borderColor:DT.cardBorder}}>CANCEL</button>
+            <button onClick={run} style={{...btn,background:DT.accent,color:"#000",fontWeight:700}}>CONFIRM: DELETE {plan.reduce((a,g)=>a+g.remove.length,0)} DUPLICATES</button>
+          </div>}
+          {state==="busy"&&<div style={{fontSize:12,color:DT.subText}}>// combining…</div>}
+          {typeof state==="string"&&/^[✓✕]/.test(state)&&<div style={{fontSize:12,color:state[0]==="✓"?DT.accent:DT.red,lineHeight:1.5}}>{state}</div>}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── DevPage ───────────────────────────────────────────────────────────────────
 // ── Notification Banner ───────────────────────────────────────────────────────
 const NOTIF_COLORS={
@@ -1829,6 +1892,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
           </div>
         </div>
         <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+        <DevNewspaperMerge items={items} setItems={setItems}/>
         <DevDataTools items={items} setItems={setItems}/>
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// store.builder</div>
         <div style={{background:DT.cardBg,border:`1px solid ${showBuilder?DT.accent+"55":DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:showBuilder?12:24,transition:"border-color 0.3s"}}>
@@ -2093,6 +2157,38 @@ function daysLabel(str){
   const starts=[...s].filter(d=>!s.has((d+6)%7));
   if(starts.length===1){let e=starts[0];while(s.has((e+1)%7))e=(e+1)%7;return e===starts[0]?N[e]:`${N[starts[0]]}–${N[e]}`;}
   return [...s].sort().map(d=>N[d]).join(", ");
+}
+// Papers can cost more on some days: item.price is the usual price, item.dayPrices the exceptions [{days:"0",price:6}]
+function parseDayPrices(v){
+  try{const a=typeof v==="string"?JSON.parse(v):v;
+    return Array.isArray(a)?a.filter(x=>x&&x.days&&x.price!=null&&!isNaN(+x.price)).map(x=>({days:String(x.days),price:+x.price})):[];
+  }catch{return [];}
+}
+function priceOn(item,dow=new Date().getDay()){
+  const o=(item.dayPrices||[]).find(x=>x.days.includes(String(dow)));
+  return o?o.price:item.price;
+}
+// every day's price, usual price first: [{days:"123456",price:4},{days:"0",price:6}]
+function priceSchedule(item){
+  const dp=item.dayPrices||[];if(!dp.length)return [];
+  const used=dp.map(x=>x.days).join("");
+  const rest=[0,1,2,3,4,5,6].filter(d=>!used.includes(String(d))).join("");
+  return [...(rest?[{days:rest,price:item.price}]:[]),...dp];
+}
+// Old-style pairs like "Herald (Monday-Saturday)" + "Herald (Sunday)" -> one "Herald" with a Sunday price
+function newspaperMergePlan(items){
+  const groups={};
+  for(const it of items){
+    if(it.subcategory!=="newspapers")continue;
+    const m=it.name.match(/^(.*?)\s*\(([^)]*day[^)]*)\)\s*$/i);if(!m)continue;
+    const days=[...parseDays(m[2])].sort().join("");if(!days)continue;
+    const k=m[1].trim().toLowerCase();
+    (groups[k]=groups[k]||{name:m[1].trim(),parts:[]}).parts.push({item:it,days});
+  }
+  return Object.values(groups).filter(g=>g.parts.length>1).map(g=>{
+    const parts=[...g.parts].sort((a,b)=>b.days.length-a.days.length); // the most days is the usual price
+    return {name:g.name,keep:parts[0].item,dayPrices:parts.slice(1).map(x=>({days:x.days,price:+x.item.price})),remove:parts.slice(1).map(x=>x.item)};
+  });
 }
 function storeHoursFor(storeHours,dow){
   for(const row of storeHours||[]){
@@ -3500,7 +3596,7 @@ export default function App(){
             packSize:row.pack_size||null, containerType:row.container_type||null,
             deposit:row.deposit!=null?parseFloat(row.deposit):null,
             wineType:row.wine_type||null,
-            days:row.days||"",
+            dayPrices:parseDayPrices(row.day_prices),
             gilliesRecommendation:row.gillies_recommendation||false,
           })));
         }
