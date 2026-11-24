@@ -1,0 +1,671 @@
+// Gil's Grocery — 3D floor map viewer + developer Store Builder.
+// Loaded on demand (dynamic import) so three.js only downloads when someone opens 3D.
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+
+// ── shared data helpers ───────────────────────────────────────────────────────
+export const KINDS = {
+  shelf:    { name: "Shelf",           h: 5,    w: 6,   d: 2,   color: "#1a2a14" },
+  cooler:   { name: "Cooler",          h: 7,    w: 4,   d: 3,   color: "#0e2030" },
+  freezer:  { name: "Ice cream chest", h: 3,    w: 5,   d: 2.5, color: "#0e2a3a" },
+  counter:  { name: "Counter",         h: 3.5,  w: 8,   d: 3,   color: "#2a1e0a" },
+  case:     { name: "Display case",    h: 3.5,  w: 6,   d: 2.5, color: "#2a1a1a" },
+  table:    { name: "Table",           h: 3,    w: 3,   d: 3,   color: "#2a1a0a" },
+  separator:{ name: "Rack separator",  h: 5.5,  w: 0.5, d: 6,   color: "#0d0d0d" },
+  floor:    { name: "Floor area",      h: 0.05, w: 10,  d: 10,  color: "#141a14" },
+};
+const COLORS = [
+  ["#1a2a3a","Wine"],["#0e2030","Beer / cooler"],["#0e2a3a","Ice cream"],["#2a1a14","Candy"],
+  ["#1e2a1e","Snacks"],["#1a2a14","Grocery"],["#2a1a1a","Cigar"],["#1a1e2a","Cards"],
+  ["#1a1a2a","Print"],["#1a2a2a","Household"],["#2a1e0a","Counter"],["#141a14","Back room"],["#0d0d0d","Separator"],
+];
+const r2 = v => Math.round(v * 100) / 100;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const slug = s => (s || "zone").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "") || "zone";
+
+export function inferKind(key) {
+  if (/back_room/.test(key)) return "floor";
+  if (/rack_sep|separator/.test(key)) return "separator";
+  if (/cooler|beer_case|beer_wine/.test(key)) return "cooler";
+  if (/ice_cream|freezer/.test(key)) return "freezer";
+  if (/counter/.test(key)) return "counter";
+  if (/cigar_case|case/.test(key)) return "case";
+  if (/meat_block|table/.test(key)) return "table";
+  return "shelf";
+}
+function inferHeight(key, kind) {
+  if (/wine_rack|household/.test(key)) return 6;
+  if (/newspaper/.test(key)) return 4;
+  return KINDS[kind].h;
+}
+// app layout (% of store) → feet
+export function toFeet(layout) {
+  const size = { ...(layout.size || { w: 40, d: 33 }) }, f = (v, s) => r2(v / 100 * s);
+  return {
+    size,
+    zones: (layout.zones || []).map(z => {
+      const kind = z.kind && KINDS[z.kind] ? z.kind : inferKind(z.key);
+      return { key: z.key, label: z.label || "", kind, x: f(z.x, size.w), z: f(z.y, size.d), w: f(z.w, size.w), d: f(z.h, size.d),
+        h: +z.height || inferHeight(z.key, kind), color: z.color || KINDS[kind].color, tappable: z.tappable !== false };
+    }),
+    walls: (layout.walls || []).map(w => ({ x1: f(w.x1, size.w), z1: f(w.y1, size.d), x2: f(w.x2, size.w), z2: f(w.y2, size.d) })),
+  };
+}
+// feet → app layout (%)
+export function toPercent(st) {
+  const { w: W, d: D } = st.size, p = (v, s) => r2(v / s * 100);
+  return {
+    size: { ...st.size },
+    zones: st.zones.map(z => ({ key: z.key, label: z.label, x: p(z.x, W), y: p(z.z, D), w: p(z.w, W), h: p(z.d, D), color: z.color, tappable: z.tappable, kind: z.kind, height: z.h })),
+    walls: st.walls.map(w => ({ x1: p(w.x1, W), y1: p(w.z1, D), x2: p(w.x2, W), y2: p(w.z2, D) })),
+  };
+}
+
+// ── shared scene pieces ───────────────────────────────────────────────────────
+const UNIT = new THREE.BoxGeometry(1, 1, 1);
+const UNIT_EDGES = new THREE.EdgesGeometry(UNIT);
+const FLOOR_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const WALL_H = 9, WALL_T = 0.45, WALL_LOW = 0.7;
+
+function brighten(hex, minL = 0.3) {
+  const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl);
+  return new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 1.25 + 0.05), Math.max(hsl.l * 1.9, minL));
+}
+function clearWorld(world) {
+  world.children.slice().forEach(o => {
+    world.remove(o);
+    o.traverse(c => {
+      if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); }
+      if (c.geometry && c.geometry !== UNIT && c.geometry !== UNIT_EDGES) c.geometry.dispose();
+    });
+  });
+}
+// listeners are attached before OrbitControls so a drag on a fixture can switch the camera off first
+function createStage(host, { listeners = {}, bg = "#04060c" } = {}) {
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const el = renderer.domElement;
+  Object.assign(el.style, { display: "block", width: "100%", height: "100%", touchAction: "none" });
+  host.prepend(el);
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(bg);
+  scene.fog = new THREE.Fog(bg, 90, 180);
+  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
+  scene.add(new THREE.HemisphereLight("#cfd8ff", "#1a1408", 2.2));
+  const sun = new THREE.DirectionalLight("#fff3dc", 2.6);
+  sun.position.set(-25, 45, 30); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 120 });
+  scene.add(sun);
+  const world = new THREE.Group(); scene.add(world);
+  const ctx = e => e.preventDefault();
+  for (const [k, f] of Object.entries(listeners)) el.addEventListener(k, f);
+  el.addEventListener("contextmenu", ctx);
+  const controls = new OrbitControls(camera, el);
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.12, maxPolarAngle: Math.PI / 2.15, minDistance: 6, maxDistance: 140 });
+  const resize = () => { const w = host.clientWidth, h = host.clientHeight; if (!w || !h) return; renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const ro = new ResizeObserver(resize); ro.observe(host); resize();
+  let raf, onFrame = () => {};
+  const loop = t => { raf = requestAnimationFrame(loop); controls.update(); onFrame(t); renderer.render(scene, camera); };
+  raf = requestAnimationFrame(loop);
+  return {
+    renderer, scene, camera, controls, world, el,
+    setFrame(f) { onFrame = f; },
+    dispose() {
+      cancelAnimationFrame(raf); ro.disconnect(); controls.dispose();
+      for (const [k, f] of Object.entries(listeners)) el.removeEventListener(k, f);
+      el.removeEventListener("contextmenu", ctx);
+      clearWorld(world); renderer.dispose(); renderer.forceContextLoss(); el.remove();
+    },
+  };
+}
+function aimCamera(stage, size, mode = "3d") {
+  const span = Math.max(size.w, size.d);
+  if (mode === "top") stage.camera.position.set(0, span * 1.75, 0.01);
+  else stage.camera.position.set(-span * 0.15, span * 0.95, span * 1.15);
+  stage.controls.target.set(0, 0, 0); stage.controls.update();
+}
+function addFloor(world, size) {
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size.w, size.d), new THREE.MeshStandardMaterial({ color: "#2a2e36", roughness: 0.9 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; world.add(floor);
+  const n = Math.ceil(Math.max(size.w, size.d));
+  const grid = new THREE.GridHelper(n, n, "#4a5262", "#363b46");
+  grid.scale.set(size.w / n, 1, size.d / n); grid.position.y = 0.01; world.add(grid);
+  const outside = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: "#07090f", roughness: 1 }));
+  outside.rotation.x = -Math.PI / 2; outside.position.y = -0.02; outside.receiveShadow = true; world.add(outside);
+}
+function makeLabel(text, on, visible = true, onColor = "#f0c040") {
+  const c = document.createElement("canvas"), ctx = c.getContext("2d"), fs = 44;
+  ctx.font = `600 ${fs}px Inter, system-ui, sans-serif`;
+  c.width = Math.ceil(ctx.measureText(text).width) + 36; c.height = fs + 28;
+  ctx.font = `600 ${fs}px Inter, system-ui, sans-serif`;
+  ctx.fillStyle = on ? onColor : "rgba(8,11,18,.82)";
+  const r = c.height / 2;
+  ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(c.width - r, 0); ctx.arc(c.width - r, r, r, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(r, c.height); ctx.arc(r, r, r, Math.PI / 2, Math.PI * 1.5); ctx.fill();
+  ctx.fillStyle = on ? "#141005" : "#e8ecf4"; ctx.textBaseline = "middle"; ctx.fillText(text, 18, c.height / 2 + 2);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
+  s.scale.set(1.15 * c.width / c.height, 1.15, 1); s.renderOrder = 10; s.visible = visible;
+  return s;
+}
+function zoneMesh(z, highlight) {
+  const col = brighten(z.color, z.kind === "separator" ? 0.14 : 0.3);
+  const glow = z.kind === "cooler" ? 0.22 : z.kind === "freezer" ? 0.15 : 0;
+  const mat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.65, metalness: 0.05,
+    emissive: highlight ? new THREE.Color(highlight) : glow ? col.clone() : new THREE.Color(0), emissiveIntensity: highlight ? 0.32 : glow });
+  const m = new THREE.Mesh(UNIT, mat); m.castShadow = z.kind !== "floor"; m.receiveShadow = true;
+  m.add(new THREE.LineSegments(UNIT_EDGES, new THREE.LineBasicMaterial({ color: highlight || "#000000", transparent: !highlight, opacity: highlight ? 1 : 0.45 })));
+  return m;
+}
+function placeZone(m, z, size) {
+  m.scale.set(Math.max(z.w, 0.05), Math.max(z.h, 0.02), Math.max(z.d, 0.05));
+  m.position.set(z.x + z.w / 2 - size.w / 2, z.h / 2, z.z + z.d / 2 - size.d / 2);
+}
+function placeWall(m, w, size, height) {
+  const dx = w.x2 - w.x1, dz = w.z2 - w.z1, L = Math.hypot(dx, dz) || 0.01;
+  m.scale.set(L + WALL_T, height, WALL_T);
+  m.position.set((w.x1 + w.x2) / 2 - size.w / 2, height / 2, (w.z1 + w.z2) / 2 - size.d / 2);
+  m.rotation.y = -Math.atan2(dz, dx);
+}
+// Sims-style cutaway: walls between the camera and the middle of the store drop low
+function animateWalls(meshes, walls, size, camera, mode, heights) {
+  meshes.forEach((m, i) => {
+    const w = walls[i]; if (!w) return;
+    let tall = mode === "up";
+    if (mode === "cut") {
+      const mx = (w.x1 + w.x2) / 2 - size.w / 2, mz = (w.z1 + w.z2) / 2 - size.d / 2;
+      tall = mx * camera.position.x + mz * camera.position.z <= 0;
+    }
+    const y = m.scale.y + ((tall ? WALL_H : WALL_LOW) - m.scale.y) * 0.25;
+    m.scale.y = y; m.position.y = y / 2; heights[i] = y;
+  });
+}
+const wallMaterial = on => new THREE.MeshStandardMaterial({ color: on ? "#f0c040" : "#b7413a", roughness: 0.8,
+  emissive: on ? new THREE.Color("#f0c040") : new THREE.Color(0), emissiveIntensity: on ? 0.25 : 0 });
+
+// ── 3D viewer (used by every floor map in the app) ────────────────────────────
+export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } = {}) {
+  const st = toFeet(layout), { size } = st, raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  let down = null;
+  const stage = createStage(host, {
+    bg: "#06080d",
+    listeners: {
+      pointerdown: e => { down = { x: e.clientX, y: e.clientY }; },
+      pointerup: e => {
+        if (!down || !onSelectZone) return;
+        const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
+        if (moved > 6) return;
+        const r = stage.el.getBoundingClientRect();
+        ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+        raycaster.setFromCamera(ndc, stage.camera);
+        const hit = raycaster.intersectObjects(Object.values(byKey).map(o => o.m), false).find(h => h.object.userData.tappable);
+        if (hit) onSelectZone(hit.object.userData.key);
+      },
+    },
+  });
+  addFloor(stage.world, size);
+  const byKey = {}, wallMeshes = [], wallH = [];
+  st.zones.forEach(z => {
+    const m = zoneMesh(z, null); placeZone(m, z, size);
+    m.userData = { key: z.key, tappable: z.tappable };
+    stage.world.add(m);
+    let label = null;
+    if (z.label && z.tappable) { label = makeLabel(z.label, false); label.position.set(m.position.x, z.h + 0.9, m.position.z); stage.world.add(label); }
+    byKey[z.key] = { m, z, label };
+  });
+  st.walls.forEach((w, i) => {
+    const m = new THREE.Mesh(UNIT, wallMaterial(false)); m.castShadow = true; m.receiveShadow = true;
+    placeWall(m, w, size, WALL_H); stage.world.add(m); wallMeshes[i] = m;
+  });
+  const marker = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.6, 20), new THREE.MeshStandardMaterial({ color: accent, emissive: new THREE.Color(accent), emissiveIntensity: 0.8 }));
+  marker.rotation.x = Math.PI; marker.visible = false; stage.world.add(marker);
+  aimCamera(stage, size);
+
+  let pin = null;
+  function setLabel(o, on) {
+    if (!o.label) return;
+    stage.world.remove(o.label); o.label.material.map.dispose(); o.label.material.dispose();
+    o.label = makeLabel(o.z.label, on, true, accent);
+    o.label.position.set(o.m.position.x, o.z.h + (on ? 3.2 : 0.9), o.m.position.z); stage.world.add(o.label);
+  }
+  function setPin(key) {
+    if (pin === key) return;
+    const old = byKey[pin];
+    if (old) { old.m.material.emissive.set(0); old.m.material.emissiveIntensity = 0; old.m.children[0].material.color.set("#000000"); old.m.children[0].material.opacity = 0.45; setLabel(old, false); }
+    pin = key;
+    const o = byKey[key];
+    marker.visible = !!o;
+    if (o) { o.m.material.emissive.set(accent); o.m.children[0].material.color.set(accent); o.m.children[0].material.opacity = 1; setLabel(o, true); }
+  }
+  stage.setFrame(t => {
+    animateWalls(wallMeshes, st.walls, size, stage.camera, "cut", wallH);
+    const o = byKey[pin];
+    if (o) {
+      o.m.material.emissiveIntensity = 0.35 + 0.25 * Math.sin(t / 260);
+      marker.position.set(o.m.position.x, o.z.h + 1.6 + 0.35 * Math.sin(t / 300), o.m.position.z);
+    }
+  });
+  return { setPin, top: () => aimCamera(stage, size, "top"), angled: () => aimCamera(stage, size, "3d"), dispose: () => stage.dispose() };
+}
+
+// ── developer Store Builder ───────────────────────────────────────────────────
+const DRAFT = "gils-store-builder-draft";
+const CSS = `
+.sb{--bg:#080b12;--panel:#0f1525;--line:#1e2a40;--line-2:#2a3650;--fg:#e8ecf4;--sub:#7a879e;--dim:#4a5670;--gold:#f0c040;--gold-ink:#141005;--danger:#e8645a;--ok:#3ccf8e;
+  color:var(--fg);font:14px Inter,system-ui,-apple-system,"Segoe UI",sans-serif;display:grid;gap:10px;color-scheme:dark}
+.sb *{box-sizing:border-box}
+.sb [hidden]{display:none!important}
+.sb button{font:600 12px Inter,system-ui,sans-serif;background:var(--panel);color:var(--fg);border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;cursor:pointer;white-space:nowrap;transition:border-color .15s,transform .08s}
+.sb button:active{transform:scale(.96)}
+.sb button.primary{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
+.sb button.on{background:#f0c04022;border-color:var(--gold);color:var(--gold)}
+.sb button.danger{color:var(--danger);border-color:#e8645a55}
+.sb button:disabled{opacity:.35;cursor:default}
+.sb .toolbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sb .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+.sb .seg button{border:0;border-radius:0;background:transparent;padding:8px 9px}
+.sb .seg button.on{background:#f0c04022}
+.sb .catalog{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+.sb .cat{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:88px;padding:8px 9px;text-align:left}
+.sb .cat .box{width:100%;height:16px;border-radius:4px;border:1px solid #ffffff22}
+.sb .cat small{font:500 10px "JetBrains Mono",ui-monospace,monospace;color:var(--sub)}
+.sb .stage{position:relative;background:#04060c;border:1px solid var(--line);border-radius:12px;overflow:hidden;height:min(62vh,560px);min-height:320px}
+.sb .pill{position:absolute;left:8px;top:8px;font:600 11px Inter,system-ui,sans-serif;background:#080b12cc;border:1px solid var(--line-2);border-radius:999px;padding:5px 10px;color:var(--sub);pointer-events:none}
+.sb .pill.gold{color:var(--gold);border-color:#f0c04066}
+.sb .hint{font-size:12px;color:var(--sub);line-height:1.55}
+.sb .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:9px;min-width:0}
+.sb .card h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--sub);margin:0;font-weight:600}
+.sb label.f{display:grid;gap:4px;font-size:11px;color:var(--sub)}
+.sb input,.sb textarea{font:13px Inter,system-ui,sans-serif;background:var(--bg);color:var(--fg);border:1px solid var(--line-2);border-radius:7px;padding:8px 9px;width:100%;min-width:0}
+.sb .mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-size:12px}
+.sb .g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.sb .g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.sb .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.sb .sw{width:26px;height:26px;border-radius:7px;padding:0;border:2px solid transparent}
+.sb .sw.on{border-color:var(--gold)}
+.sb .toggle{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:8px}
+.sb .layers{max-height:220px;overflow:auto;display:grid;gap:2px}
+.sb .layer{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:transparent;border:1px solid transparent;text-align:left;font-weight:500;font-size:12px;width:100%}
+.sb .layer.on{border-color:var(--gold);background:#f0c04014}
+.sb .chip{width:12px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid var(--line-2)}
+.sb .layer .k{margin-left:auto;font:10px "JetBrains Mono",monospace;color:var(--dim)}
+.sb .empty{font-size:12px;color:var(--dim);line-height:1.5}
+.sb .status{font:600 11px "JetBrains Mono",monospace;padding:4px 9px;border-radius:999px;border:1px solid var(--line-2);color:var(--sub)}
+.sb .status.dirty{color:var(--gold);border-color:#f0c04066}
+.sb .status.saved{color:var(--ok);border-color:#3ccf8e66}
+.sb textarea.out{min-height:110px;resize:vertical;line-height:1.45}
+.sb .confirm{background:#2a0f0f;border:1px solid #e8645a55;border-radius:9px;padding:10px;display:grid;gap:8px;font-size:12px;color:#f0b0aa}
+.sb .toast{position:fixed;left:50%;bottom:calc(96px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ok);color:#04140c;font-weight:700;padding:9px 16px;border-radius:20px;font-size:13px;z-index:400}
+`;
+const MARKUP = `
+<div class="catalog" data-r="catalog"></div>
+<div class="toolbar">
+  <button class="primary" data-r="save">Save to app</button>
+  <span class="status" data-r="status">Saved</span>
+</div>
+<div class="toolbar">
+  <button data-r="drawWall">✏ Draw wall</button>
+  <button data-r="rot">⟳ Rotate</button>
+  <button data-r="dup">Duplicate</button>
+  <button class="danger" data-r="del">Delete</button>
+  <button data-r="undo">↶</button><button data-r="redo">↷</button>
+</div>
+<div class="toolbar">
+  <div class="seg"><button data-walls="up">Walls up</button><button data-walls="cut" class="on">Cutaway</button><button data-walls="down">Down</button></div>
+  <div class="seg"><button data-r="cam3d" class="on">3D</button><button data-r="camTop">Top</button></div>
+  <button data-r="labels" class="on">Labels</button>
+  <button data-r="snap" class="on">Snap ½ ft</button>
+</div>
+<div class="stage" data-r="stage"><span class="pill" data-r="modePill"></span></div>
+<div class="hint">Drag a fixture to slide it. Once selected, drag a <b>gold corner</b> for width/depth or the <b>blue arrow</b> for height. Drag empty space to orbit, pinch or scroll to zoom, two-finger or right-drag to pan. Changes stay a draft on this device until you press <b>Save to app</b>.</div>
+<div class="card" data-r="inspector"></div>
+<div class="card">
+  <h3>Store size</h3>
+  <div class="g2">
+    <label class="f">Width (ft, left → right)<input class="mono" type="number" step="0.5" min="5" data-r="sizeW"></label>
+    <label class="f">Depth (ft, back → front)<input class="mono" type="number" step="0.5" min="5" data-r="sizeD"></label>
+  </div>
+  <div class="hint">Changing the size stretches everything with it.</div>
+</div>
+<div class="card"><h3>Layers <span data-r="stats" style="letter-spacing:0;text-transform:none;font-weight:500;color:var(--dim)"></span></h3><div class="layers" data-r="layers"></div></div>
+<div class="card">
+  <h3>Backup &amp; import</h3>
+  <div class="hint">Paste a layout from the standalone Store Builder page, or copy this one as a backup.</div>
+  <div class="row"><button data-r="importBtn">Import…</button><button data-r="copy">Copy layout</button><button class="danger" data-r="discardBtn">Discard draft</button></div>
+  <div data-r="importBox" hidden style="display:grid;gap:8px">
+    <textarea class="out mono" data-r="importText" placeholder="Paste an exported layout here"></textarea>
+    <div class="row"><button class="primary" data-r="importGo">Load it</button><button data-r="importCancel">Cancel</button></div>
+    <div class="empty" data-r="importErr"></div>
+  </div>
+  <div class="confirm" data-r="discardBox" hidden>Throw away the draft and go back to the layout the app is using?
+    <div class="row"><button class="danger" data-r="discardGo">Discard draft</button><button data-r="discardCancel">Keep editing</button></div>
+  </div>
+</div>
+<div class="toast" data-r="toast" hidden></div>`;
+
+export function mountBuilder(host, layout, { onSave }) {
+  if (!document.querySelector("style[data-sb]")) { const s = document.createElement("style"); s.dataset.sb = "1"; s.textContent = CSS; document.head.appendChild(s); }
+  host.classList.add("sb"); host.innerHTML = MARKUP;
+  const $ = n => host.querySelector(`[data-r="${n}"]`);
+  const all = sel => host.querySelectorAll(sel);
+
+  let saved = toFeet(layout);
+  let state = (() => { try { const d = JSON.parse(localStorage.getItem(DRAFT)); if (d && d.size && Array.isArray(d.zones)) return d; } catch {} return structuredClone(saved); })();
+  let sel = null, undoS = [], redoS = [], snapOn = true, labelsOn = true, wallMode = "cut", drawWall = false, drag = null;
+  const snap = v => snapOn ? Math.round(v * 2) / 2 : Math.round(v * 10) / 10;
+  const snapshot = () => JSON.stringify(state);
+  const pushUndo = before => { if (before !== snapshot()) { undoS.push(before); if (undoS.length > 100) undoS.shift(); redoS = []; } };
+  const commit = fn => { const b = snapshot(); fn(); pushUndo(b); refresh(); };
+  const uniqueKey = base => { const keys = new Set(state.zones.map(z => z.key)); let k = base, n = 2; while (keys.has(k)) k = `${base}_${n++}`; return k; };
+  const wx = x => x - state.size.w / 2, wz = z => z - state.size.d / 2;
+
+  // ── stage ──
+  const raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const stage = createStage($("stage"), { listeners: { pointerdown: onDown, pointermove: onMove, pointerup: onUp, pointercancel: onUp } });
+  let zoneMeshes = [], wallMeshes = [], handleMeshes = [], labelSprites = [], ghostWall;
+  const wallH = [];
+  const _p = new THREE.Vector3();
+  stage.setFrame(() => {
+    animateWalls(wallMeshes, state.walls, state.size, stage.camera, wallMode, wallH);
+    if (sel && sel.kind === "wall") syncWall(sel.i);
+    handleMeshes.forEach(h => { h.getWorldPosition(_p); h.scale.setScalar(clamp(stage.camera.position.distanceTo(_p) * 0.028, 0.7, 3)); });
+  });
+
+  function buildScene() {
+    clearWorld(stage.world); zoneMeshes = []; wallMeshes = []; handleMeshes = []; labelSprites = [];
+    addFloor(stage.world, state.size);
+    state.zones.forEach((z, i) => {
+      const on = sel && sel.kind === "zone" && sel.i === i;
+      const m = zoneMesh(z, on ? "#f0c040" : null); m.userData = { kind: "zone", i };
+      stage.world.add(m); zoneMeshes[i] = m;
+      if (z.label) { const s = makeLabel(z.label, on, labelsOn); stage.world.add(s); labelSprites[i] = s; }
+    });
+    state.walls.forEach((w, i) => {
+      const on = sel && sel.kind === "wall" && sel.i === i;
+      const m = new THREE.Mesh(UNIT, wallMaterial(on)); m.castShadow = true; m.receiveShadow = true;
+      m.userData = { kind: "wall", i }; m.scale.y = wallH[i] ?? WALL_H;
+      stage.world.add(m); wallMeshes[i] = m;
+    });
+    if (sel && sel.kind === "wall") ["p1", "p2"].forEach(part => addHandle(part, "#f0c040", new THREE.SphereGeometry(0.5, 20, 14)));
+    if (sel && sel.kind === "zone") {
+      ["c-nw", "c-ne", "c-sw", "c-se"].forEach(part => addHandle(part, "#f0c040", new THREE.SphereGeometry(0.4, 18, 12)));
+      addHandle("top", "#7fd3ff", new THREE.ConeGeometry(0.42, 0.85, 20));
+    }
+    state.zones.forEach((_, i) => syncZone(i));
+    state.walls.forEach((_, i) => syncWall(i));
+    ghostWall = new THREE.Mesh(UNIT, new THREE.MeshStandardMaterial({ color: "#f0c040", transparent: true, opacity: 0.55 }));
+    ghostWall.visible = false; stage.world.add(ghostWall);
+  }
+  function addHandle(part, col, geo) {
+    const h = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: col, emissive: new THREE.Color(col), emissiveIntensity: 0.55, depthTest: false, transparent: true }));
+    h.renderOrder = 20; h.userData = { kind: sel.kind, i: sel.i, part }; stage.world.add(h); handleMeshes.push(h);
+  }
+  function syncZone(i) {
+    const z = state.zones[i], m = zoneMeshes[i]; if (!m) return;
+    placeZone(m, z, state.size);
+    const on = sel && sel.kind === "zone" && sel.i === i;
+    const s = labelSprites[i]; if (s) s.position.set(m.position.x, z.h + (on ? 2.2 : 0.9), m.position.z);
+    if (on) {
+      const x0 = wx(z.x), x1 = wx(z.x + z.w), z0 = wz(z.z), z1 = wz(z.z + z.d), y = z.h;
+      const pos = { "c-nw": [x0, y, z0], "c-ne": [x1, y, z0], "c-sw": [x0, y, z1], "c-se": [x1, y, z1], top: [(x0 + x1) / 2, y + 0.75, (z0 + z1) / 2] };
+      handleMeshes.forEach(h => h.position.set(...pos[h.userData.part]));
+    }
+  }
+  function syncWall(i) {
+    const w = state.walls[i], m = wallMeshes[i]; if (!m) return;
+    placeWall(m, w, state.size, m.scale.y);
+    if (sel && sel.kind === "wall" && sel.i === i && handleMeshes.length) {
+      handleMeshes[0].position.set(wx(w.x1), Math.min(m.scale.y, WALL_H) + 0.6, wz(w.z1));
+      handleMeshes[1].position.set(wx(w.x2), Math.min(m.scale.y, WALL_H) + 0.6, wz(w.z2));
+    }
+  }
+
+  // ── picking & dragging ──
+  function setNdc(e) { const r = stage.el.getBoundingClientRect(); ndc.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); raycaster.setFromCamera(ndc, stage.camera); }
+  function planeHit(plane) { const p = new THREE.Vector3(); return raycaster.ray.intersectPlane(plane, p) ? p : null; }
+  function floorHit() { const p = planeHit(FLOOR_PLANE); return p ? { x: p.x + state.size.w / 2, z: p.z + state.size.d / 2 } : null; }
+  function onDown(e) {
+    if (e.button === 2) return;
+    setNdc(e);
+    if (drawWall) {
+      const p = floorHit(); if (!p) return;
+      stage.controls.enabled = false;
+      drag = { type: "draw", start: { x: snap(p.x), z: snap(p.z) }, end: null, before: snapshot() };
+      stage.el.setPointerCapture(e.pointerId); return;
+    }
+    const hh = raycaster.intersectObjects(handleMeshes, false);
+    const hits = hh.length ? hh : raycaster.intersectObjects([...zoneMeshes.filter(Boolean), ...wallMeshes], false);
+    if (!hits.length) { drag = { type: "maybeDeselect", x: e.clientX, y: e.clientY }; return; }
+    const ud = hits[0].object.userData, part = ud.part || "body";
+    let plane = FLOOR_PLANE;
+    if (part.startsWith("c-")) plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -state.zones[ud.i].h);
+    else if (part === "top") {
+      const at = hits[0].object.position, n = new THREE.Vector3(stage.camera.position.x - at.x, 0, stage.camera.position.z - at.z).normalize();
+      plane = new THREE.Plane().setFromNormalAndCoplanarPoint(n, at);
+    }
+    const p = planeHit(plane); if (!p) return;
+    stage.controls.enabled = false;
+    const changed = !sel || sel.kind !== ud.kind || sel.i !== ud.i;
+    sel = { kind: ud.kind, i: ud.i };
+    drag = { type: "obj", kind: ud.kind, i: ud.i, part, plane, start: p, orig: { ...(ud.kind === "zone" ? state.zones[ud.i] : state.walls[ud.i]) }, before: snapshot(), moved: false };
+    stage.el.setPointerCapture(e.pointerId);
+    if (changed) refresh();
+  }
+  function onMove(e) {
+    if (!drag || drag.type === "maybeDeselect") return;
+    setNdc(e);
+    const { w: W, d: D } = state.size, pill = $("modePill");
+    if (drag.type === "draw") {
+      const p = floorHit(); if (!p) return;
+      drag.end = { x: clamp(snap(p.x), 0, W), z: clamp(snap(p.z), 0, D) };
+      const s = drag.start, t = drag.end, dx = t.x - s.x, dz = t.z - s.z, L = Math.hypot(dx, dz);
+      ghostWall.visible = L > 0.2; ghostWall.scale.set(L + WALL_T, WALL_H * 0.6, WALL_T);
+      ghostWall.position.set(wx((s.x + t.x) / 2), WALL_H * 0.3, wz((s.z + t.z) / 2)); ghostWall.rotation.y = -Math.atan2(dz, dx);
+      pill.textContent = `Wall · ${L.toFixed(1)} ft`; return;
+    }
+    const p = planeHit(drag.plane); if (!p) return;
+    const dx = p.x - drag.start.x, dy = p.y - drag.start.y, dz = p.z - drag.start.z, o = drag.orig;
+    if (!drag.moved && Math.hypot(dx, dy, dz) < 0.15) return;
+    drag.moved = true;
+    if (drag.kind === "zone") {
+      const z = state.zones[drag.i], part = drag.part, MIN = 0.25, name = z.label || "Separator";
+      if (part === "body") {
+        z.x = clamp(snap(o.x + dx), 0, Math.max(0, W - z.w)); z.z = clamp(snap(o.z + dz), 0, Math.max(0, D - z.d));
+        pill.textContent = `${name} · ${z.x.toFixed(1)} ft from left, ${z.z.toFixed(1)} ft from back`;
+      } else if (part === "top") {
+        z.h = clamp(snap(o.h + dy), 0.05, 30);
+        pill.textContent = `${name} · ${z.h.toFixed(1)} ft tall`;
+      } else {
+        let L = o.x, T = o.z, R = o.x + o.w, B = o.z + o.d;
+        if (part.includes("w")) L = clamp(snap(o.x + dx), 0, R - MIN);
+        if (part.includes("e")) R = clamp(snap(R + dx), L + MIN, W);
+        if (part.includes("n")) T = clamp(snap(o.z + dz), 0, B - MIN);
+        if (part.includes("s")) B = clamp(snap(B + dz), T + MIN, D);
+        z.x = r2(L); z.z = r2(T); z.w = r2(R - L); z.d = r2(B - T);
+        pill.textContent = `${name} · ${z.w.toFixed(1)} × ${z.d.toFixed(1)} ft`;
+      }
+      syncZone(drag.i);
+    } else {
+      const w = state.walls[drag.i];
+      if (drag.part === "p1") { w.x1 = clamp(snap(o.x1 + dx), 0, W); w.z1 = clamp(snap(o.z1 + dz), 0, D); }
+      else if (drag.part === "p2") { w.x2 = clamp(snap(o.x2 + dx), 0, W); w.z2 = clamp(snap(o.z2 + dz), 0, D); }
+      else { w.x1 = snap(o.x1 + dx); w.z1 = snap(o.z1 + dz); w.x2 = snap(o.x2 + dx); w.z2 = snap(o.z2 + dz); }
+      syncWall(drag.i);
+      pill.textContent = `Wall · ${Math.hypot(w.x2 - w.x1, w.z2 - w.z1).toFixed(1)} ft`;
+    }
+    syncInspectorValues();
+  }
+  function onUp(e) {
+    stage.controls.enabled = true;
+    if (!drag) return;
+    if (drag.type === "maybeDeselect") { if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 5 && sel) { sel = null; refresh(); } }
+    else if (drag.type === "draw") {
+      ghostWall.visible = false;
+      const s = drag.start, t = drag.end;
+      if (t && Math.hypot(t.x - s.x, t.z - s.z) >= 0.5) { state.walls.push({ x1: s.x, z1: s.z, x2: t.x, z2: t.z }); sel = { kind: "wall", i: state.walls.length - 1 }; }
+      pushUndo(drag.before); refresh();
+    } else { pushUndo(drag.before); refresh(); }
+    drag = null; setPill();
+  }
+  function setPill() {
+    const p = $("modePill"); p.classList.toggle("gold", drawWall);
+    p.textContent = drawWall ? "Draw wall · drag across the floor" : sel ? (sel.kind === "zone" ? `Selected: ${state.zones[sel.i].label || "Separator"}` : `Selected: wall ${sel.i + 1}`) : "Drag fixtures · drag empty space to orbit";
+  }
+
+  // ── panel ──
+  function refresh() {
+    buildScene();
+    const zs = state.zones;
+    $("stats").textContent = `· ${state.size.w}×${state.size.d} ft · ${zs.length} fixtures · ${state.walls.length} walls`;
+    $("undo").disabled = !undoS.length; $("redo").disabled = !redoS.length;
+    $("dup").disabled = $("del").disabled = !sel; $("rot").disabled = !sel || sel.kind !== "zone";
+    if (document.activeElement !== $("sizeW")) $("sizeW").value = state.size.w;
+    if (document.activeElement !== $("sizeD")) $("sizeD").value = state.size.d;
+    let L = "";
+    zs.forEach((z, i) => { const on = sel && sel.kind === "zone" && sel.i === i;
+      L += `<button class="layer${on ? " on" : ""}" data-kind="zone" data-i="${i}"><span class="chip" style="background:${z.color}"></span>${esc(z.label || "(separator)")}<span class="k">${esc(KINDS[z.kind].name)}</span></button>`; });
+    state.walls.forEach((w, i) => { const on = sel && sel.kind === "wall" && sel.i === i;
+      L += `<button class="layer${on ? " on" : ""}" data-kind="wall" data-i="${i}"><span class="chip" style="background:#b7413a"></span>Wall ${i + 1}<span class="k">${Math.hypot(w.x2 - w.x1, w.z2 - w.z1).toFixed(1)} ft</span></button>`; });
+    $("layers").innerHTML = L;
+    const insp = $("inspector"), sig = sel ? sel.kind + sel.i : "none";
+    if (insp.contains(document.activeElement) && insp.dataset.sig === sig) syncInspectorValues();
+    else { insp.dataset.sig = sig; insp.innerHTML = inspectorHtml(); }
+    const dirty = snapshot() !== JSON.stringify(saved);
+    const st = $("status"); st.textContent = dirty ? "Unsaved draft" : "Saved"; st.className = "status " + (dirty ? "dirty" : "saved");
+    try { dirty ? localStorage.setItem(DRAFT, snapshot()) : localStorage.removeItem(DRAFT); } catch {}
+    setPill();
+  }
+  const num = (f, v, label) => `<label class="f">${label}<input class="mono" type="number" step="0.5" data-f="${f}" value="${v}"></label>`;
+  function inspectorHtml() {
+    if (!sel) return `<h3>Selected</h3><div class="empty">Nothing selected. Tap a fixture or wall, pick one from Layers, or place something new from the strip above.</div>`;
+    if (sel.kind === "wall") {
+      const w = state.walls[sel.i];
+      return `<h3>Wall ${sel.i + 1}</h3><div class="g2">${num("x1", w.x1, "Start · from left")}${num("z1", w.z1, "Start · from back")}${num("x2", w.x2, "End · from left")}${num("z2", w.z2, "End · from back")}</div><div class="hint">Drag the gold balls to move each end. All values in feet.</div>`;
+    }
+    const z = state.zones[sel.i];
+    return `<h3>Selected fixture</h3>
+      <label class="f">Name shown on the map<input type="text" data-f="label" value="${esc(z.label)}" placeholder="e.g. Candy 4"></label>
+      <label class="f">Key (what items are pinned to)<input class="mono" type="text" data-f="key" value="${esc(z.key)}"></label>
+      <div class="g2">${num("x", z.x, "From left wall (ft)")}${num("z", z.z, "From back wall (ft)")}</div>
+      <div class="g3">${num("w", z.w, "Width")}${num("d", z.d, "Depth")}${num("h", z.h, "Height")}</div>
+      <div class="row">${Object.entries(KINDS).map(([k, v]) => `<button data-kind-set="${k}" class="${z.kind === k ? "on" : ""}" style="padding:6px 8px">${v.name}</button>`).join("")}</div>
+      <div class="row">${COLORS.map(([c, n]) => `<button class="sw${z.color === c ? " on" : ""}" data-color="${c}" title="${n}" aria-label="${n}" style="background:${c}"></button>`).join("")}</div>
+      <div class="toggle"><span>Tappable (items can be pinned here)</span><button data-r="tap" class="${z.tappable ? "on" : ""}">${z.tappable ? "Yes" : "No"}</button></div>`;
+  }
+  function syncInspectorValues() {
+    if (!sel) return;
+    const o = sel.kind === "zone" ? state.zones[sel.i] : state.walls[sel.i];
+    $("inspector").querySelectorAll("input[data-f]").forEach(inp => { if (inp !== document.activeElement) inp.value = o[inp.dataset.f]; });
+  }
+  let editBefore = null;
+  const insp = $("inspector");
+  insp.addEventListener("focusin", () => { editBefore = snapshot(); });
+  insp.addEventListener("input", e => {
+    const f = e.target.dataset.f; if (!f || !sel) return;
+    const o = sel.kind === "zone" ? state.zones[sel.i] : state.walls[sel.i];
+    if (f === "label") o.label = e.target.value;
+    else if (f === "key") o.key = slug(e.target.value);
+    else { const v = parseFloat(e.target.value); if (isNaN(v)) return; o[f] = ["w", "d"].includes(f) ? Math.max(0.1, v) : f === "h" ? Math.max(0.02, v) : v; }
+    refresh();
+  });
+  insp.addEventListener("change", () => { if (editBefore) { pushUndo(editBefore); editBefore = snapshot(); refresh(); } });
+  insp.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b || !sel || sel.kind !== "zone") return;
+    const z = state.zones[sel.i];
+    if (b.dataset.color) commit(() => { z.color = b.dataset.color; });
+    else if (b.dataset.kindSet) commit(() => { z.kind = b.dataset.kindSet; z.h = KINDS[z.kind].h; if (z.kind === "separator") z.tappable = false; });
+    else if (b.dataset.r === "tap") commit(() => { z.tappable = !z.tappable; });
+    else return;
+    insp.dataset.sig = ""; refresh();
+  });
+  $("layers").addEventListener("click", e => { const b = e.target.closest(".layer"); if (!b) return; sel = { kind: b.dataset.kind, i: +b.dataset.i }; refresh(); });
+
+  // ── catalog & toolbar ──
+  $("catalog").innerHTML = Object.entries(KINDS).map(([k, v]) =>
+    `<button class="cat" data-add="${k}"><span class="box" style="background:#${brighten(v.color).getHexString()}"></span>${v.name}<small>${v.w}×${v.d}×${v.h} ft</small></button>`).join("");
+  $("catalog").addEventListener("click", e => {
+    const b = e.target.closest("[data-add]"); if (!b) return; const k = b.dataset.add, K = KINDS[k];
+    setDraw(false);
+    commit(() => {
+      const n = state.zones.filter(z => z.kind === k).length + 1;
+      state.zones.push({ key: uniqueKey(slug(K.name) + "_" + n), label: k === "separator" ? "" : `${K.name} ${n}`, kind: k,
+        x: snap(state.size.w / 2 - K.w / 2), z: snap(state.size.d / 2 - K.d / 2), w: K.w, d: K.d, h: K.h, color: K.color, tappable: k !== "separator" });
+      sel = { kind: "zone", i: state.zones.length - 1 };
+    });
+    toast(`${K.name} placed in the middle. Drag it into place.`);
+  });
+  function setDraw(on) { drawWall = on; $("drawWall").classList.toggle("on", on); setPill(); }
+  $("drawWall").onclick = () => { setDraw(!drawWall); if (drawWall) { sel = null; refresh(); } };
+  function rotate() { if (!sel || sel.kind !== "zone") return; commit(() => { const z = state.zones[sel.i], cx = z.x + z.w / 2, cz = z.z + z.d / 2; [z.w, z.d] = [z.d, z.w];
+    z.x = clamp(snap(cx - z.w / 2), 0, Math.max(0, state.size.w - z.w)); z.z = clamp(snap(cz - z.d / 2), 0, Math.max(0, state.size.d - z.d)); }); }
+  $("rot").onclick = rotate;
+  $("dup").onclick = () => { if (!sel) return; commit(() => {
+    if (sel.kind === "zone") { const z = state.zones[sel.i]; state.zones.push({ ...z, key: uniqueKey(z.key + "_copy"), label: z.label ? z.label + " copy" : "", x: clamp(z.x + 1, 0, state.size.w - z.w), z: clamp(z.z + 1, 0, state.size.d - z.d) }); sel = { kind: "zone", i: state.zones.length - 1 }; }
+    else { const w = state.walls[sel.i]; state.walls.push({ x1: w.x1 + 1, z1: w.z1 + 1, x2: w.x2 + 1, z2: w.z2 + 1 }); sel = { kind: "wall", i: state.walls.length - 1 }; }
+  }); };
+  $("del").onclick = () => { if (!sel) return; commit(() => { (sel.kind === "zone" ? state.zones : state.walls).splice(sel.i, 1); sel = null; }); };
+  $("undo").onclick = () => { if (!undoS.length) return; redoS.push(snapshot()); state = JSON.parse(undoS.pop()); sel = null; refresh(); };
+  $("redo").onclick = () => { if (!redoS.length) return; undoS.push(snapshot()); state = JSON.parse(redoS.pop()); sel = null; refresh(); };
+  all("[data-walls]").forEach(b => b.onclick = () => { wallMode = b.dataset.walls; all("[data-walls]").forEach(x => x.classList.toggle("on", x === b)); });
+  const setCam = mode => { aimCamera(stage, state.size, mode); $("cam3d").classList.toggle("on", mode === "3d"); $("camTop").classList.toggle("on", mode === "top"); };
+  $("cam3d").onclick = () => setCam("3d"); $("camTop").onclick = () => setCam("top");
+  $("labels").onclick = () => { labelsOn = !labelsOn; $("labels").classList.toggle("on", labelsOn); labelSprites.forEach(s => s && (s.visible = labelsOn)); };
+  $("snap").onclick = () => { snapOn = !snapOn; $("snap").classList.toggle("on", snapOn); };
+  let sizeBefore = null;
+  ["sizeW", "sizeD"].forEach(n => {
+    $(n).addEventListener("focus", () => { sizeBefore = snapshot(); });
+    $(n).addEventListener("change", () => {
+      const v = parseFloat($(n).value); if (isNaN(v) || v < 5) { refresh(); return; }
+      const axis = n === "sizeW" ? "w" : "d", k = v / state.size[axis];
+      state.size[axis] = v;
+      state.zones.forEach(z => { if (axis === "w") { z.x = r2(z.x * k); z.w = r2(z.w * k); } else { z.z = r2(z.z * k); z.d = r2(z.d * k); } });
+      state.walls.forEach(w => { if (axis === "w") { w.x1 = r2(w.x1 * k); w.x2 = r2(w.x2 * k); } else { w.z1 = r2(w.z1 * k); w.z2 = r2(w.z2 * k); } });
+      pushUndo(sizeBefore); refresh(); setCam("3d");
+    });
+  });
+  function onKey(e) {
+    if (!host.isConnected || e.target.matches("input,textarea")) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); (e.shiftKey ? $("redo") : $("undo")).click(); return; }
+    if (e.key === "Escape") { setDraw(false); sel = null; refresh(); return; }
+    if (!sel) return;
+    if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); $("del").click(); return; }
+    if (e.key.toLowerCase() === "r") { rotate(); return; }
+    const st = e.shiftKey ? 2 : 0.5, d = { ArrowLeft: [-st, 0], ArrowRight: [st, 0], ArrowUp: [0, -st], ArrowDown: [0, st] }[e.key];
+    if (!d) return; e.preventDefault();
+    commit(() => { if (sel.kind === "zone") { const z = state.zones[sel.i]; z.x = r2(clamp(z.x + d[0], 0, state.size.w - z.w)); z.z = r2(clamp(z.z + d[1], 0, state.size.d - z.d)); }
+      else { const w = state.walls[sel.i]; w.x1 += d[0]; w.x2 += d[0]; w.z1 += d[1]; w.z2 += d[1]; } });
+  }
+  document.addEventListener("keydown", onKey);
+
+  // ── save / import / discard ──
+  function toast(msg, bad) { const t = $("toast"); t.textContent = msg; t.style.background = bad ? "#e8645a" : ""; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => t.hidden = true, 2200); }
+  $("save").onclick = async () => {
+    const btn = $("save"); btn.disabled = true; btn.textContent = "Saving…";
+    try { await onSave(toPercent(state)); saved = JSON.parse(snapshot()); refresh(); toast("Saved. Every floor map now uses this layout."); }
+    catch (err) { toast("Couldn't save to the database. Check your connection and try again.", true); console.error(err); }
+    btn.disabled = false; btn.textContent = "Save to app";
+  };
+  const exportText = () => { const l = toPercent(state);
+    return `// Gil's Store Builder export — ${new Date().toLocaleDateString()}\nconst STORE_SIZE = ${JSON.stringify(l.size)};\nconst FLOOR_ZONES = [\n${l.zones.map(z => "  " + JSON.stringify(z)).join(",\n")}\n];\nconst FLOOR_WALLS = [\n${l.walls.map(w => "  " + JSON.stringify(w)).join(",\n")}\n];`; };
+  $("copy").onclick = () => { navigator.clipboard.writeText(exportText()).then(() => toast("Layout copied")).catch(() => toast("Your browser blocked the clipboard", true)); };
+  $("importBtn").onclick = () => { $("importBox").hidden = false; $("discardBox").hidden = true; $("importText").focus(); };
+  $("importCancel").onclick = () => { $("importBox").hidden = true; $("importErr").textContent = ""; };
+  $("importGo").onclick = () => {
+    const txt = $("importText").value;
+    try {
+      const zm = txt.match(/FLOOR_ZONES\s*=\s*(\[[\s\S]*?\]);/), wm = txt.match(/FLOOR_WALLS\s*=\s*(\[[\s\S]*?\]);/), sm = txt.match(/STORE_SIZE\s*=\s*(\{[\s\S]*?\});/);
+      if (!zm) throw new Error("Couldn't find FLOOR_ZONES in what you pasted.");
+      const next = toFeet({ zones: JSON.parse(zm[1]), walls: wm ? JSON.parse(wm[1]) : [], size: sm ? JSON.parse(sm[1]) : state.size });
+      commit(() => { state = next; sel = null; }); setCam("3d");
+      $("importBox").hidden = true; $("importText").value = ""; $("importErr").textContent = "";
+      toast("Layout loaded. Press Save to app to publish it.");
+    } catch (err) { $("importErr").textContent = err.message.startsWith("Couldn't") ? err.message : "That doesn't look like a Store Builder export. Paste the whole block, including the const lines."; }
+  };
+  $("discardBtn").onclick = () => { $("discardBox").hidden = false; $("importBox").hidden = true; };
+  $("discardCancel").onclick = () => { $("discardBox").hidden = true; };
+  $("discardGo").onclick = () => { commit(() => { state = structuredClone(saved); sel = null; }); setCam("3d"); $("discardBox").hidden = true; toast("Draft discarded"); };
+
+  setCam("3d"); refresh();
+  return { dispose() { document.removeEventListener("keydown", onKey); stage.dispose(); host.innerHTML = ""; host.classList.remove("sb"); } };
+}

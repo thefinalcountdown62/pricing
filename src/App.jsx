@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, createContext, useContext } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase ───────────────────────────────────────────────────────────────────
@@ -243,6 +243,8 @@ function LockIcon({unlocked,size=18}){
 }
 
 // ── Floor plan ────────────────────────────────────────────────────────────────
+// ── STORE LAYOUT (paste a Store Builder export over this block) ──────────────
+const STORE_SIZE = {"w":40,"d":33};
 const FLOOR_ZONES = [
   {key:"back_room",         label:"Back Room",          x:8,   y:8,   w:22,  h:22,  color:"#141a14", tappable:true},
   {key:"counter",           label:"Counter",            x:51,  y:8,   w:18,  h:9,   color:"#2a1e0a", tappable:true},
@@ -282,33 +284,66 @@ const FLOOR_ZONES = [
   {key:"ice_cream_1",       label:"Ice Cream 1",        x:47,  y:82,  w:9,   h:12,  color:"#0e2a3a", tappable:true},
   {key:"cigar_case_1",      label:"Cigar Case 1",       x:60,  y:79,  w:18,  h:15,  color:"#2a1a1a", tappable:true},
 ];
+const FLOOR_WALLS = [
+  {"x1":8,"y1":7,"x2":96,"y2":7},{"x1":96,"y1":7,"x2":96,"y2":96},{"x1":8,"y1":7,"x2":8,"y2":96},
+  {"x1":8,"y1":96,"x2":43,"y2":96},{"x1":53,"y1":96,"x2":96,"y2":96},
+  {"x1":30,"y1":8,"x2":30,"y2":30},{"x1":8,"y1":30,"x2":30,"y2":30},{"x1":13,"y1":35,"x2":33,"y2":35},
+  {"x1":30,"y1":37,"x2":38,"y2":46},{"x1":34,"y1":35,"x2":42,"y2":44}
+];
+// ── END STORE LAYOUT ─────────────────────────────────────────────────────────
+// The live layout comes from Supabase (app_settings.store_layout, saved by the dev Store Builder);
+// the constants above are the fallback until it loads.
+const DEFAULT_LAYOUT={size:STORE_SIZE,zones:FLOOR_ZONES,walls:FLOOR_WALLS};
+const LayoutCtx=createContext(DEFAULT_LAYOUT);
+const loadStore3d=()=>import("./store3d.js"); // three.js only downloads when someone opens 3D
+
+function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly}){
+  const ref=useRef(null),viewer=useRef(null),cb=useRef(onSelectZone),pinRef=useRef(pinZone);
+  cb.current=onSelectZone;pinRef.current=pinZone;
+  const [failed,setFailed]=useState(false);
+  useEffect(()=>{
+    let dead=false;
+    loadStore3d().then(m=>{
+      if(dead||!ref.current)return;
+      viewer.current=m.mountViewer(ref.current,layout,{accent,onSelectZone:readonly?null:k=>cb.current&&cb.current(k)});
+      viewer.current.setPin(pinRef.current);
+    }).catch(e=>{console.error(e);setFailed(true);});
+    return()=>{dead=true;if(viewer.current){viewer.current.dispose();viewer.current=null;}};
+  },[layout,readonly,accent]);
+  useEffect(()=>{viewer.current&&viewer.current.setPin(pinZone);},[pinZone]);
+  return(
+    <div ref={ref} style={{width:"100%",aspectRatio:`${layout.size.w} / ${layout.size.d}`,minHeight:240,position:"relative",background:"#06080d"}}>
+      {failed&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"rgba(255,255,255,0.45)",textAlign:"center",padding:16}}>The 3D map couldn't load. Switch back to 2D.</div>}
+    </div>
+  );
+}
 
 function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
+  const layout=useContext(LayoutCtx);
   const [hovered,setHovered]=useState(null);
-  const W=540, H=440;
+  const [mode,setMode]=useState(()=>{try{return localStorage.getItem("floor-mode")||"2d";}catch{return "2d";}});
+  function pickMode(m){setMode(m);try{localStorage.setItem("floor-mode",m);}catch{}}
+  const W=540, H=Math.round(540*layout.size.d/layout.size.w);
   function px(x){return x/100*W;}
   function py(y){return y/100*H;}
   function pw(w){return w/100*W;}
   function ph(h){return h/100*H;}
   return(
     <div style={{position:"relative",width:"100%",borderRadius:10,overflow:"hidden",background:"#080808",border:"1px solid rgba(255,255,255,0.07)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:6,right:6,zIndex:3,display:"flex",background:"rgba(8,11,18,0.85)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,overflow:"hidden"}}>
+        {["2d","3d"].map(m=>(
+          <button key={m} type="button" onClick={()=>pickMode(m)}
+            style={{padding:"4px 9px",fontSize:10,fontWeight:700,letterSpacing:"0.06em",border:"none",cursor:"pointer",fontFamily:"inherit",
+              background:mode===m?(accent||"#f0c040"):"transparent",color:mode===m?"#0f1117":"rgba(255,255,255,0.55)",transition:"background 0.2s"}}>
+            {m.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      {mode==="3d"?<FloorPlan3D layout={layout} pinZone={pinZone} onSelectZone={onSelectZone} accent={accent||"#f0c040"} readonly={readonly}/>:
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block"}}>
         <defs><style>{`@keyframes floorFlash{0%{opacity:1}40%{opacity:0.35}100%{opacity:1}}`}</style></defs>
-        {/* Outer walls — red like the drawing */}
-        <rect x={px(8)} y={py(7)} width={pw(88)} height={ph(89)} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth={2}/>
-        {/* Back room inner walls */}
-        <line x1={px(30)} y1={py(8)} x2={px(30)} y2={py(30)} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5}/>
-        <line x1={px(8)}  y1={py(30)} x2={px(30)} y2={py(30)} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5}/>
-        {/* Left wall horizontal shelf bar */}
-        <line x1={px(13)} y1={py(35)} x2={px(33)} y2={py(35)} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5}/>
-        {/* Diagonal display lines */}
-        <line x1={px(30)} y1={py(37)} x2={px(38)} y2={py(46)} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} strokeLinecap="round"/>
-        <line x1={px(34)} y1={py(35)} x2={px(42)} y2={py(44)} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} strokeLinecap="round"/>
-        {/* Entrance gap bottom center */}
-        <rect x={px(43)} y={ph(95)} width={pw(10)} height={12} fill="#080808"/>
-        <text x={px(48)} y={ph(99)} textAnchor="middle" fontSize={7} fill="rgba(255,255,255,0.2)" fontFamily="inherit">ENTRANCE</text>
         {/* Zones */}
-        {FLOOR_ZONES.map(zone=>{
+        {layout.zones.map(zone=>{
           if(!zone.tappable) return <rect key={zone.key} x={px(zone.x)} y={py(zone.y)} width={pw(zone.w)} height={ph(zone.h)} fill="#0a0a0a" stroke="rgba(255,255,255,0.12)" strokeWidth={0.5}/>;
           const isPin=pinZone===zone.key;
           const isHov=hovered===zone.key;
@@ -320,17 +355,25 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
                 fill={isPin?`${accent}35`:isHov&&!readonly?`${zone.color}ff`:`${zone.color}cc`}
                 stroke={isPin?accent:isHov&&!readonly?"rgba(255,255,255,0.35)":"rgba(255,255,255,0.1)"} strokeWidth={isPin?1.5:0.8}/>
               {isPin&&<rect x={x} y={y} width={w} height={h} rx={3} fill="none" stroke={accent} strokeWidth={1.5} opacity={0.9} style={{animation:"floorFlash 0.35s ease"}} filter={`drop-shadow(0 0 5px ${accent})`}/>}
-              {w>24&&h>12&&(
-                <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-                  fontSize={Math.min(9,Math.max(5.5,Math.min(w/(zone.label.length*0.62),h/2.2)))}
+              {zone.label&&(()=>{
+                const vertical=h>w*1.6&&w<zone.label.length*5;
+                const span=vertical?h:w,thick=vertical?w:h;
+                if(span<20||thick<8)return null;
+                return <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                  transform={vertical?`rotate(-90 ${cx} ${cy})`:undefined}
+                  fontSize={Math.min(9,Math.max(5,Math.min(span/(zone.label.length*0.62),thick/2.2)))}
                   fill={isPin?accent:"rgba(255,255,255,0.6)"} fontWeight={isPin?"700":"400"} fontFamily="inherit"
-                  style={{pointerEvents:"none",userSelect:"none"}}>{zone.label}</text>
-              )}
+                  style={{pointerEvents:"none",userSelect:"none"}}>{zone.label}</text>;
+              })()}
               {isPin&&<circle cx={cx} cy={y+7} r={4} fill={accent} filter={`drop-shadow(0 0 6px ${accent})`}/>}
             </g>
           );
         })}
-      </svg>
+        {/* Walls — drawn last so they sit over the fixtures */}
+        {layout.walls.map((wl,i)=>(
+          <line key={i} x1={px(wl.x1)} y1={py(wl.y1)} x2={px(wl.x2)} y2={py(wl.y2)} stroke="rgba(201,74,74,0.75)" strokeWidth={2.2} strokeLinecap="round" style={{pointerEvents:"none"}}/>
+        ))}
+      </svg>}
     </div>
   );
 }
@@ -356,6 +399,7 @@ function SwipeRow({onSwipeLeft,children,accentColor}){
 
 // ── ItemCard ──────────────────────────────────────────────────────────────────
 function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
+  const layout=useContext(LayoutCtx);
   const [expanded,setExpanded]=useState(forceExpand);
   const [pressed,setPressed]=useState(false);
   const [mapExpanded,setMapExpanded]=useState(false);
@@ -366,7 +410,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
   const total=item.price+(item.deposit||0);
   const hasInventory=item.inventory!=null;
   const isLowStock=hasInventory&&item.inventory>0&&item.inventory<=5;
-  const zoneName=FLOOR_ZONES.find(z=>z.key===item.mapZone)?.label||item.mapZone;
+  const zoneName=layout.zones.find(z=>z.key===item.mapZone)?.label||item.mapZone;
   return(
     <>
     {/* Fullscreen map takeover */}
@@ -836,6 +880,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 
 // ── CategoryPage ──────────────────────────────────────────────────────────────
 function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false,bannerOffset=0}){
+  const layout=useContext(LayoutCtx);
   function requireManager(){
     if(!isManager){onRequireManager();return false;}
     if(managerDisabled&&!isDev){onRequireManager();return false;}
@@ -970,7 +1015,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
     setSyncing(true);
     const inventoryCount = form.inventory!==""?parseInt(form.inventory):null;
     const autoOos = inventoryCount===0 ? true : form.outOfStock;
-    const autoLocation = form.location.trim() || (form.mapZone ? FLOOR_ZONES.find(z=>z.key===form.mapZone)?.label||"" : "");
+    const autoLocation = form.location.trim() || (form.mapZone ? layout.zones.find(z=>z.key===form.mapZone)?.label||"" : "");
     const base={
       name:form.name.trim(), subcategory:form.subcategory, price:parseFloat(form.price),
       location:autoLocation, notes:form.notes||"",
@@ -1233,7 +1278,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             <div style={{marginBottom:12}}>
               <button type="button" onClick={()=>setMapOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"none",border:"none",padding:"0 0 5px",cursor:"pointer",fontFamily:"inherit"}}>
                 <div style={{fontSize:11,color:baseT.sub,textTransform:"uppercase",letterSpacing:"0.06em"}}>
-                  Pin on Floor Map {form.mapZone&&<span style={{color:accentColor}}>· {FLOOR_ZONES.find(z=>z.key===form.mapZone)?.label}</span>}
+                  Pin on Floor Map {form.mapZone&&<span style={{color:accentColor}}>· {layout.zones.find(z=>z.key===form.mapZone)?.label}</span>}
                 </div>
                 <span style={{fontSize:12,color:baseT.sub,transform:mapOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.25s ease",display:"inline-block"}}>▾</span>
               </button>
@@ -1241,12 +1286,12 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 <div style={{overflow:"hidden"}}>
                   <FloorPlan pinZone={form.mapZone} onSelectZone={z=>{
                     const newZone=form.mapZone===z?null:z;
-                    const zoneLabel=newZone?FLOOR_ZONES.find(fz=>fz.key===newZone)?.label||"":"";
+                    const zoneLabel=newZone?layout.zones.find(fz=>fz.key===newZone)?.label||"":"";
                     setForm(f=>({...f,mapZone:newZone,location:zoneLabel||f.location}));
                   }} accent={accentColor}/>
                   {form.mapZone&&(
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6}}>
-                      <span style={{fontSize:11,color:accentColor,fontWeight:600}}>📍 {FLOOR_ZONES.find(z=>z.key===form.mapZone)?.label}</span>
+                      <span style={{fontSize:11,color:accentColor,fontWeight:600}}>📍 {layout.zones.find(z=>z.key===form.mapZone)?.label}</span>
                       <button onClick={()=>setForm(f=>({...f,mapZone:null}))} style={{fontSize:11,color:baseT.sub,background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit"}}>✕ Clear</button>
                     </div>
                   )}
@@ -1489,7 +1534,21 @@ function NotifBanner({notif,onExpire}){
   );
 }
 
-function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,setItems,activeNotif,onNotifChange}){
+function StoreBuilderPanel({layout,onSave}){
+  const ref=useRef(null),saveRef=useRef(onSave);saveRef.current=onSave;
+  const [failed,setFailed]=useState(false);
+  useEffect(()=>{
+    let dead=false,b=null;
+    loadStore3d().then(m=>{if(!dead&&ref.current)b=m.mountBuilder(ref.current,layout,{onSave:l=>saveRef.current(l)});})
+      .catch(e=>{console.error(e);setFailed(true);});
+    return()=>{dead=true;if(b)b.dispose();};
+  },[]);// mounts once; the builder keeps its own draft from here
+  if(failed)return <div style={{fontSize:12,color:DT.red,padding:"8px 0 20px",letterSpacing:"0.06em"}}>// ERROR: builder failed to load — check your connection and reopen it</div>;
+  return <div ref={ref} style={{marginBottom:24}}/>;
+}
+
+function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,setItems,activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
+  const [showBuilder,setShowBuilder]=useState(false);
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
   const [managerDisabled,setManagerDisabled]=useState(managerDisabledProp);
@@ -1600,6 +1659,19 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
           </div>
         </div>
         <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// store.builder</div>
+        <div style={{background:DT.cardBg,border:`1px solid ${showBuilder?DT.accent+"55":DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:showBuilder?12:24,transition:"border-color 0.3s"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+            <div style={{fontSize:14,fontWeight:700,color:DT.text}}>3D Store Builder</div>
+            <span style={{fontSize:10,padding:"3px 8px",background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}44`,borderRadius:4,letterSpacing:"0.06em"}}>DEV ONLY</span>
+          </div>
+          <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em"}}>// live map: {layout.size.w}×{layout.size.d} ft · {layout.zones.length} fixtures · {layout.walls.length} walls</div>
+          <button onClick={()=>setShowBuilder(v=>!v)}
+            style={{width:"100%",padding:"10px",background:showBuilder?"transparent":`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>
+            {showBuilder?"✕ CLOSE_BUILDER":"OPEN_BUILDER →"}
+          </button>
+        </div>
+        {showBuilder&&<StoreBuilderPanel layout={layout} onSave={onLayoutSave}/>}
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.storeHours</div>
         <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
           <div style={{fontSize:11,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>// shown on the schedule page</div>
@@ -3024,6 +3096,7 @@ export default function App(){
   const [storeHours,setStoreHours]=useState(DEFAULT_HOURS);
   const [activeNotif,setActiveNotif]=useState(null);
   const [showMore,setShowMore]=useState(false);
+  const [layout,setLayout]=useState(DEFAULT_LAYOUT);
 
   // Load items and settings from Supabase on mount
   useEffect(()=>{
@@ -3051,6 +3124,12 @@ export default function App(){
         // Load store hours
         const hours=await fetchStoreHours();
         setStoreHours(hours);
+        // Store layout saved by the dev Store Builder (falls back to the built-in map)
+        try{
+          const {data:lay}=await sb.from("app_settings").select("value").eq("key","store_layout").maybeSingle();
+          const l=lay&&lay.value?JSON.parse(lay.value):null;
+          if(l&&l.size&&Array.isArray(l.zones)&&l.zones.length)setLayout({size:l.size,zones:l.zones,walls:Array.isArray(l.walls)?l.walls:[]});
+        }catch(layEx){console.warn("store_layout not loaded:",layEx);}
         // New year check — delete all shifts from previous years
         const storedYear=parseInt(localStorage.getItem("shifts_year")||"0");
         const thisYear=new Date().getFullYear();
@@ -3116,9 +3195,15 @@ export default function App(){
   const bannerOffset=(managerDisabled&&!isDev?36:0)+(activeNotif&&!managerDisabled?36:0);
   const bugsT={accent:"#7c83fd",accentText:"#fff",card:"#0f0f22",border:"#1e1e40",sub:"#505080",inputBg:"#0a0a18",inputBorder:"#1e1e40"};
 
+  async function saveLayout(l){
+    const {error}=await sb.from("app_settings").upsert({key:"store_layout",value:JSON.stringify(l)},{onConflict:"key"});
+    if(error)throw error;
+    setLayout(l);
+  }
   function handlePageChange(p){setPage(p);if(p!=="pricing")setSelectedCategory(null);}
 
   return(
+    <LayoutCtx.Provider value={layout}>
     <div style={{maxWidth:480,margin:"0 auto",position:"relative"}}>
       <style>{`
         @keyframes popIn{0%{opacity:0;transform:scale(0.85)}70%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
@@ -3201,9 +3286,10 @@ export default function App(){
       {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager}/>}
       {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif}/>}      <CustomerCounter/>
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}      <CustomerCounter/>
       <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
       <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
     </div>
+    </LayoutCtx.Provider>
   );
 }
