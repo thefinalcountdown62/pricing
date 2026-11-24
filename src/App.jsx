@@ -2105,6 +2105,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS,preset
   const [newName,setNewName]=useState("");
   const [copyAsk,setCopyAsk]=useState(false);
   const [notice,setNotice]=useState("");
+  const [openPay,setOpenPay]=useState(null);
 
   const bg=isDark?"#080b12":"#f0f0e8";
   const card=isDark?"#0f1525":"#ffffff";
@@ -2205,18 +2206,6 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS,preset
     arr.splice(idx,1);
     setShifts(prev=>({...prev,[key]:arr}));
   }
-
-  // Monthly earnings per person
-  const earnings={};
-  Object.entries(shifts).forEach(([k,arr])=>{
-    if(!k.startsWith(`${month}-`))return;
-    arr.forEach(s=>{
-      const name=canon(s.name);
-      if(!name)return;
-      const hrs=parseHours(s.startTime,s.endTime);
-      earnings[name]=(earnings[name]||0)+hrs;
-    });
-  });
 
   function nameColor(name,lightness){
     const n=(name||"").trim().toLowerCase();
@@ -2419,82 +2408,108 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS,preset
     );
   }
   // ── Month calendar view ────────────────────────────────────────────────────
+  const SS_RATE=0.062, MED_RATE=0.0145;
+  const money=x=>"$"+x.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+  const green=isDark?"#4aaa4a":"#2a7a2a", red="#e07070";
+  const isThisMonth=month===now.getMonth();
+  // Sun–Sat weeks of this month (clipped to the month), and each person's hours in each
+  const weeks=[];
+  for(let d=1;d<=daysInMonth;d++){const w=Math.floor((firstDay+d-1)/7);(weeks[w]=weeks[w]||{first:d,last:d}).last=d;}
+  const people={};
+  for(let d=1;d<=daysInMonth;d++){
+    const w=Math.floor((firstDay+d-1)/7);
+    dayShifts(d).forEach(x=>{const n=canon(x.name);if(!n)return;(people[n]=people[n]||weeks.map(()=>0))[w]+=parseHours(x.startTime,x.endTime);});
+  }
+  const payOf=h=>{const gross=h*HOURLY_RATE,ss=gross*SS_RATE,med=gross*MED_RATE;return {h,gross,ss,med,net:gross-ss-med};};
+  const monthHrs=Object.values(people).flat().reduce((a,h)=>a+h,0);
+  const monthShifts=cells.reduce((a,d)=>a+(d?dayShifts(d).length:0),0);
+  const mon=MONTH_NAMES[month].slice(0,3);
+  const navBtn={width:40,height:40,borderRadius:12,background:isDark?"#1a1f2e":"#e6e6d8",border:`1px solid ${border}`,color:text,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",flexShrink:0};
+  const num={fontVariantNumeric:"tabular-nums",textAlign:"right"};
   return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        .cal-day{transition:transform 0.1s ease,box-shadow 0.15s ease;}
-        .cal-day:active{transform:scale(0.95);}
-        .cal-day:hover{box-shadow:0 4px 16px rgba(0,0,0,0.2);}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+        .cal-day{transition:background 0.15s ease;}
+        .cal-day:active{background:${isDark?"#18203a":"#ececf8"}!important;}
       `}</style>
-      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
+      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"18px 16px 14px"}}>
         <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
         <div style={{display:"flex",alignItems:"center",gap:9,minHeight:42,marginBottom:10}}>
           <span style={{fontSize:22,lineHeight:1}}>📅</span>
           <span style={{fontSize:24,fontWeight:700,color:accent,lineHeight:1.15,letterSpacing:"-0.01em"}}>Work Schedule</span>
         </div>
-
         {/* Store hours */}
-        <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
-          {(storeHours||DEFAULT_HOURS).map(({days,hours},i)=>{
-            const colors=["#7c83fd",isDark?"#4aaa4a":"#2a7a2a","#e67e22"];
-            return(
-              <div key={i} style={{flexShrink:0,background:isDark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",border:`1px solid ${isDark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.08)"}`,borderRadius:10,padding:"7px 10px"}}>
-                <div style={{fontSize:9,fontWeight:700,color:colors[i%3],textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{days}</div>
-                <div style={{fontSize:11,fontWeight:600,color:text,whiteSpace:"nowrap"}}>{hours}</div>
-              </div>
-            );
-          })}
-        </div>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <button onClick={()=>setMonth(m=>(m+11)%12)} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:text,fontSize:16,fontFamily:"inherit",flexShrink:0}}>‹</button>
-          <div style={{flex:1,display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
-            {MONTH_NAMES.map((m,i)=>(
-              <button key={i} onClick={()=>setMonth(i)} style={{flexShrink:0,padding:"5px 10px",borderRadius:20,border:`1px solid ${i===month?accent:border}`,background:i===month?accent:"transparent",color:i===month?"#fff":sub,fontSize:11,fontWeight:i===month?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",whiteSpace:"nowrap"}}>
-                {m.slice(0,3)}
-              </button>
-            ))}
-          </div>
-          <button onClick={()=>setMonth(m=>(m+1)%12)} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:text,fontSize:16,fontFamily:"inherit",flexShrink:0}}>›</button>
-        </div>
-      </div>
-      <div style={{padding:"12px 10px"}}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:2,marginBottom:4}}>
-          {DAY_NAMES.map(d=>(
-            <div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:sub,letterSpacing:"0.04em",padding:"4px 0",textTransform:"uppercase"}}>{d}</div>
+        <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+          {(storeHours||DEFAULT_HOURS).map(({days,hours},i)=>(
+            <div key={i} style={{flexShrink:0,background:isDark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",border:`1px solid ${isDark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.08)"}`,borderRadius:10,padding:"7px 10px"}}>
+              <div style={{fontSize:9,fontWeight:700,color:sub,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{days}</div>
+              <div style={{fontSize:11,fontWeight:600,color:text,whiteSpace:"nowrap"}}>{hours}</div>
+            </div>
           ))}
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:3,animation:"fadeIn 0.3s ease"}}>
-          {cells.map((day,i)=>{
-            if(!day) return <div key={`e${i}`}/>;
-            const sh=dayShifts(day);
-            const names=[...new Set(sh.map(s=>canon(s.name)).filter(Boolean))];
-            const isToday=now.getFullYear()===currentYear&&month===now.getMonth()&&day===now.getDate();
-            const gap=sh.length>0&&coverageGaps(sh,storeHoursFor(storeHours,new Date(currentYear,month,day).getDay())).length>0;
-            return(
-              <div key={day} className="cal-day tap-btn" onClick={()=>{setFocusDay(day);setAddingName(false);}}
-                style={{background:card,border:`1px solid ${isToday?accent:border}`,borderRadius:10,padding:"5px 3px",minHeight:62,cursor:"pointer",position:"relative",boxShadow:isToday?`0 0 0 1.5px ${accent}44`:"none"}}>
-                {gap&&<div title="Gap in coverage" style={{position:"absolute",top:5,right:5,width:6,height:6,borderRadius:"50%",background:"#e07070"}}/>}
-                <div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?accent:text,marginBottom:3,textAlign:"center",lineHeight:1}}>{day}</div>
-                <div style={{display:"flex",flexDirection:"column",gap:2}}>
-                  {names.slice(0,3).map((name,ni)=>(
-                    <div key={ni} style={{fontSize:9,fontWeight:600,borderRadius:3,padding:"1px 4px",background:nameColor(name,isDark?25:80),color:nameColor(name,isDark?75:20),whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
-                  ))}
-                  {names.length>3&&<div style={{fontSize:8,color:sub,textAlign:"center"}}>+{names.length-3}</div>}
-                </div>
-              </div>
-            );
-          })}
+      </div>
+
+      <div style={{padding:"14px 12px"}}>
+        {/* Month switcher + month at a glance */}
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
+          <button aria-label="Previous month" onClick={()=>setMonth(m=>(m+11)%12)} style={navBtn}>‹</button>
+          <div style={{flex:1,textAlign:"center",minWidth:0}}>
+            <div style={{fontSize:20,fontWeight:700,color:text,lineHeight:1.2}}>{MONTH_NAMES[month]}</div>
+            <div style={{fontSize:11,color:sub,marginTop:2}}>{monthShifts?`${monthShifts} shift${monthShifts!==1?"s":""} · ${+monthHrs.toFixed(1)}h · ${money(monthHrs*HOURLY_RATE)}`:"Nothing scheduled yet"}</div>
+          </div>
+          <button aria-label="Next month" onClick={()=>setMonth(m=>(m+1)%12)} style={navBtn}>›</button>
+        </div>
+        {!isThisMonth&&<div style={{textAlign:"center",marginTop:-4,marginBottom:10}}>
+          <button onClick={()=>setMonth(now.getMonth())} style={{minHeight:32,padding:"4px 14px",borderRadius:16,border:`1px solid ${accent}66`,background:"transparent",color:accent,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Back to today</button>
+        </div>}
+
+        {/* Calendar */}
+        <div style={{background:card,border:`1px solid ${border}`,borderRadius:16,overflow:"hidden"}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",borderBottom:`1px solid ${border}`}}>
+            {DAY_NAMES.map((d,i)=>(
+              <div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:i===0||i===6?accent:sub,letterSpacing:"0.06em",padding:"9px 0",textTransform:"uppercase"}}>{d}</div>
+            ))}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(7,minmax(0,1fr))",gap:1,background:border,animation:"fadeIn 0.3s ease"}}>
+            {[...cells,...Array((7-cells.length%7)%7).fill(null)].map((day,i)=>{
+              if(!day) return <div key={`e${i}`} style={{background:isDark?"#0b1120":"#f7f7f0"}}/>;
+              const sh=dayShifts(day);
+              const names=[...new Set(sh.map(x=>canon(x.name)).filter(Boolean))];
+              const hrsDay=sh.reduce((a,x)=>a+parseHours(x.startTime,x.endTime),0);
+              const isToday=isThisMonth&&day===now.getDate();
+              const isPast=isThisMonth?day<now.getDate():month<now.getMonth();
+              const gap=sh.length>0&&coverageGaps(sh,storeHoursFor(storeHours,new Date(currentYear,month,day).getDay())).length>0;
+              return(
+                <button key={day} className="cal-day" onClick={()=>{setFocusDay(day);setAddingName(false);}} aria-label={`${MONTH_NAMES[month]} ${day}${sh.length?`, ${sh.length} shifts`:""}`}
+                  style={{background:isToday?(isDark?"#141a33":"#f0f0ff"):card,border:"none",padding:"6px 4px 5px",minHeight:70,cursor:"pointer",position:"relative",display:"flex",flexDirection:"column",alignItems:"stretch",gap:4,fontFamily:"inherit",textAlign:"left"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                    <span style={{width:22,height:22,borderRadius:"50%",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:isToday?700:500,background:isToday?accent:"transparent",color:isToday?"#fff":isPast?sub:text}}>{day}</span>
+                    {gap&&<span title="Gap in coverage" style={{width:6,height:6,borderRadius:"50%",background:red,marginRight:2}}/>}
+                  </div>
+                  {names.length>0&&<div style={{display:"flex",paddingLeft:2,opacity:isPast?0.6:1}}>
+                    {names.slice(0,3).map((n,ni)=>(
+                      <span key={n} title={n} style={{width:17,height:17,borderRadius:"50%",marginLeft:ni?-4:0,background:nameColor(n,isDark?45:50),border:`1.5px solid ${card}`,color:"#fff",fontSize:9,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center"}}>{n[0].toUpperCase()}</span>
+                    ))}
+                    {names.length>3&&<span style={{fontSize:9,color:sub,marginLeft:3,alignSelf:"center"}}>+{names.length-3}</span>}
+                  </div>}
+                  {hrsDay>0&&<div style={{marginTop:"auto",fontSize:9.5,color:sub,paddingLeft:3,fontVariantNumeric:"tabular-nums"}}>{+hrsDay.toFixed(1)}h</div>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:"4px 14px",fontSize:11,color:sub,marginTop:8,padding:"0 4px"}}>
+          <span>Tap a day to add or edit shifts</span>
+          {cells.some(d=>d&&dayShifts(d).length&&coverageGaps(dayShifts(d),storeHoursFor(storeHours,new Date(currentYear,month,d).getDay())).length)&&(
+            <span style={{display:"inline-flex",alignItems:"center",gap:5}}><span style={{width:6,height:6,borderRadius:"50%",background:red}}/>Gap in open hours</span>
+          )}
         </div>
 
-        {cells.some(d=>d&&dayShifts(d).length&&coverageGaps(dayShifts(d),storeHoursFor(storeHours,new Date(currentYear,month,d).getDay())).length)&&(
-          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:sub,marginTop:8,paddingLeft:4}}>
-            <span style={{width:6,height:6,borderRadius:"50%",background:"#e07070",display:"inline-block"}}/>Open hours with nobody scheduled
-          </div>
-        )}
         {/* Staff */}
-        <div style={{marginTop:18,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16}}>
+        <div style={{marginTop:14,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:12}}>
             <span style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:700}}>Staff</span>
             <span style={{fontSize:11,color:sub}}>{(staff||[]).length} {(staff||[]).length===1?"person":"people"}</span>
@@ -2517,74 +2532,68 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS,preset
           </div>
           {(staff||[]).length>0&&<div style={{fontSize:11,color:sub,marginTop:10}}>Removing someone keeps their past shifts.</div>}
         </div>
-        {/* Earnings summary — weekly + monthly */}
-        {Object.keys(earnings).length>0&&(()=>{
-          const SS_RATE=0.062, MED_RATE=0.0145;
-          // Weekly: hrs in the selected week (days in current month / 7 approx) — we show per-week avg
-          // Actually compute: weekly = monthly hrs / (daysInMonth/7)
-          const weeksInMonth=daysInMonth/7;
+        {/* Pay summary — one card per person; tap to see each week */}
+        {Object.keys(people).length>0&&(()=>{
+          const total=payOf(monthHrs);
           return(
-            <div style={{marginTop:18,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,animation:"fadeUp 0.3s ease"}}>
-              <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12,fontWeight:700}}>{MONTH_NAMES[month]} Pay Summary</div>
-              {Object.entries(earnings).map(([name,monthHrs])=>{
-                const weekHrs=monthHrs/weeksInMonth;
-                const grossWeek=weekHrs*HOURLY_RATE;
-                const grossMonth=monthHrs*HOURLY_RATE;
-                const ssWeek=grossWeek*SS_RATE;
-                const medWeek=grossWeek*MED_RATE;
-                const netWeek=grossWeek-ssWeek-medWeek;
-                const ssMonth=grossMonth*SS_RATE;
-                const medMonth=grossMonth*MED_RATE;
-                const netMonth=grossMonth-ssMonth-medMonth;
+            <div style={{marginTop:14,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,animation:"fadeUp 0.3s ease"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
+                <span style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",fontWeight:700}}>{MONTH_NAMES[month]} Pay</span>
+                <span style={{fontSize:11,color:sub}}>${HOURLY_RATE}/hr · SS 6.2% · Medicare 1.45%</span>
+              </div>
+              <div style={{display:"flex",gap:8,margin:"10px 0 14px"}}>
+                {[["Payroll",money(total.gross),text],["Hours",`${+monthHrs.toFixed(1)}h`,text],["Take-home",money(total.net),green]].map(([l,v,c])=>(
+                  <div key={l} style={{flex:1,minWidth:0,background:isDark?"#0a0f1e":"#f6f6ee",borderRadius:10,padding:"9px 10px"}}>
+                    <div style={{fontSize:10,color:sub,textTransform:"uppercase",letterSpacing:"0.06em"}}>{l}</div>
+                    <div style={{fontSize:15,fontWeight:700,color:c,marginTop:2,fontVariantNumeric:"tabular-nums",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{v}</div>
+                  </div>
+                ))}
+              </div>
+              {Object.entries(people).sort((a,b)=>a[0].localeCompare(b[0])).map(([name,wk])=>{
+                const m=payOf(wk.reduce((a,h)=>a+h,0)), open=openPay===name;
+                const cols="minmax(0,1.1fr) repeat(4,minmax(0,1fr))";
+                const Row=({label,p,strong})=>(
+                  <div style={{display:"grid",gridTemplateColumns:cols,gap:4,alignItems:"baseline",fontSize:strong?12.5:12,fontWeight:strong?700:400,padding:"7px 0",borderTop:`1px solid ${border}`,opacity:p.h||strong?1:0.45}}>
+                    <span style={{color:strong?text:sub,whiteSpace:"nowrap"}}>{label}<br/><span style={{fontSize:10,color:sub,fontWeight:400}}>{+p.h.toFixed(2)}h</span></span>
+                    {p.h?<>
+                      <span style={{...num,color:text}}>{money(p.gross)}</span>
+                      <span style={{...num,color:red}}>−{p.ss.toFixed(2)}</span>
+                      <span style={{...num,color:red}}>−{p.med.toFixed(2)}</span>
+                      <span style={{...num,color:green}}>{money(p.net)}</span>
+                    </>:<span style={{...num,gridColumn:"2 / -1",color:sub}}>No shifts</span>}
+                  </div>
+                );
                 return(
-                  <div key={name} style={{marginBottom:14,background:isDark?"#0a0f1e":"#f8f8f0",border:`1px solid ${border}`,borderRadius:12,padding:12}}>
-                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-                      <div style={{width:28,height:28,borderRadius:"50%",background:nameColor(name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        <span style={{fontSize:11,fontWeight:700,color:nameColor(name,isDark?80:20)}}>{name[0]?.toUpperCase()}</span>
+                  <div key={name} style={{border:`1px solid ${open?nameColor(name,isDark?35:75):border}`,borderRadius:12,marginBottom:8,overflow:"hidden",transition:"border-color 0.2s"}}>
+                    <button onClick={()=>setOpenPay(open?null:name)} aria-expanded={open}
+                      style={{width:"100%",display:"flex",alignItems:"center",gap:10,padding:"11px 12px",minHeight:56,background:"transparent",border:"none",cursor:"pointer",fontFamily:"inherit",textAlign:"left"}}>
+                      <span style={{width:32,height:32,borderRadius:"50%",background:nameColor(name,isDark?30:80),color:nameColor(name,isDark?80:25),fontSize:13,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>{name[0].toUpperCase()}</span>
+                      <span style={{flex:1,minWidth:0}}>
+                        <span style={{display:"block",fontSize:15,fontWeight:600,color:text}}>{name}</span>
+                        <span style={{display:"block",fontSize:11,color:sub}}>{+m.h.toFixed(1)}h · {money(m.gross)} gross</span>
+                      </span>
+                      <span style={{textAlign:"right"}}>
+                        <span style={{display:"block",fontSize:15,fontWeight:700,color:green,fontVariantNumeric:"tabular-nums"}}>{money(m.net)}</span>
+                        <span style={{display:"block",fontSize:10,color:sub}}>take-home</span>
+                      </span>
+                      <span style={{color:sub,fontSize:12,transform:open?"rotate(180deg)":"none",transition:"transform 0.2s",marginLeft:2}}>▾</span>
+                    </button>
+                    {open&&(
+                      <div style={{padding:"0 12px 12px",animation:"slideDown 0.2s ease"}}>
+                        <div style={{display:"grid",gridTemplateColumns:cols,gap:4,fontSize:9.5,color:sub,textTransform:"uppercase",letterSpacing:"0.05em",paddingBottom:6}}>
+                          <span>Week</span><span style={num}>Gross</span><span style={num}>SS</span><span style={num}>Med.</span><span style={num}>Net</span>
+                        </div>
+                        {weeks.map((w,wi)=><Row key={wi} label={w.first===w.last?`${mon} ${w.first}`:`${mon} ${w.first}–${w.last}`} p={payOf(wk[wi])}/>)}
+                        <Row label="Month" p={m} strong/>
+                        <div style={{marginTop:8,padding:"8px 10px",borderRadius:8,background:isDark?"#1a0f12":"#fdf0f0",fontSize:11.5,color:red,display:"flex",justifyContent:"space-between",gap:8}}>
+                          <span>Withheld this month</span><span style={{fontWeight:700,fontVariantNumeric:"tabular-nums"}}>−{money(m.ss+m.med).slice(1)}</span>
+                        </div>
                       </div>
-                      <div style={{fontSize:13,fontWeight:700,color:text}}>{name}</div>
-                      <div style={{marginLeft:"auto",fontSize:11,color:sub}}>{monthHrs.toFixed(1)} hrs/mo · {weekHrs.toFixed(1)} hrs/wk avg</div>
-                    </div>
-                    {/* Weekly */}
-                    <div style={{marginBottom:6}}>
-                      <div style={{fontSize:10,color:sub,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Weekly (avg)</div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
-                        <span style={{color:sub}}>Gross</span><span style={{color:text,fontWeight:600}}>${grossWeek.toFixed(2)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
-                        <span style={{color:sub}}>SS (6.2%)</span><span style={{color:"#e07070"}}>−${ssWeek.toFixed(2)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
-                        <span style={{color:sub}}>Medicare (1.45%)</span><span style={{color:"#e07070"}}>−${medWeek.toFixed(2)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700,paddingTop:4,borderTop:`1px solid ${border}`}}>
-                        <span style={{color:sub}}>Take-home</span><span style={{color:isDark?"#4aaa4a":"#2a7a2a"}}>${netWeek.toFixed(2)}</span>
-                      </div>
-                    </div>
-                    {/* Monthly */}
-                    <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${border}`}}>
-                      <div style={{fontSize:10,color:sub,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Monthly</div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
-                        <span style={{color:sub}}>Gross</span><span style={{color:text,fontWeight:600}}>${grossMonth.toFixed(2)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
-                        <span style={{color:sub}}>SS (6.2%)</span><span style={{color:"#e07070"}}>−${ssMonth.toFixed(2)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
-                        <span style={{color:sub}}>Medicare (1.45%)</span><span style={{color:"#e07070"}}>−${medMonth.toFixed(2)}</span>
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700,paddingTop:4,borderTop:`1px solid ${border}`}}>
-                        <span style={{color:sub}}>Take-home</span><span style={{color:isDark?"#4aaa4a":"#2a7a2a"}}>${netMonth.toFixed(2)}</span>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
-              <div style={{height:1,background:border,margin:"4px 0 10px"}}/>
-              <div style={{display:"flex",justifyContent:"space-between"}}>
-                <span style={{fontSize:12,color:sub}}>Total gross payroll</span>
-                <span style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(Object.values(earnings).reduce((a,h)=>a+h,0)*HOURLY_RATE).toFixed(2)}</span>
-              </div>
+              <div style={{fontSize:10.5,color:sub,marginTop:6,lineHeight:1.5}}>Net is take-home after Social Security (SS) and Medicare. Weeks run Sunday–Saturday and only count days in {MONTH_NAMES[month]}. Income tax isn't included.</div>
             </div>
           );
         })()}
