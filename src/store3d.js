@@ -375,74 +375,308 @@ function cooler(g, L, T, H, r, col) {
   }
   items(g, list, CYL);
 }
-function freezer(g, L, T, H, r, col) {
-  const white = mat("#e9ecef", { r: 0.5 }), frost = mat("#dcebf3", { o: 0.28, r: 0.1 }), trim = mat(look.metal, { m: 0.45, r: 0.4 });
-  const bh = Math.max(0.5, H * 0.8);
-  part(g, L, bh, T, white, 0, bh / 2, 0);
-  part(g, L + 0.02, Math.min(0.35, bh * 0.2), T + 0.02, mat(col), 0, bh * 0.2, 0, false);  // color band
-  part(g, L, 0.08, T, trim, 0, bh + 0.04, 0, false);
-  const list = [], cols = Math.max(1, Math.floor((L - 0.3) / 0.55)), rows = Math.max(1, Math.floor((T - 0.3) / 0.55));
-  for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
-    if (r() < 0.12) continue;
-    list.push({ x: -L / 2 + 0.15 + (a + 0.5) * ((L - 0.3) / cols), y: bh + 0.08, z: -T / 2 + 0.15 + (b + 0.5) * ((T - 0.3) / rows), w: 0.45, h: 0.22, d: 0.45, c: pick(r, PAL.icecream) });
-  }
-  items(g, list, CYL);
-  const ly = Math.min(bh + 0.22, H - 0.04);
-  const l1 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, -T / 4, false); l1.rotation.x = -0.12;
-  const l2 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, T / 4, false); l2.rotation.x = 0.12;
+// ── Gil's own fixtures, modelled on photos of the store ─────────────────────────
+// (all built like the rest: length along x, depth along z, front facing +z, floor at y = 0)
+const texMat = (tex, o = {}) => {
+  const k = "tex|" + tex.uuid + "|" + (o.r ?? 0.6);
+  let m = MATS.get(k);
+  if (!m) { m = new THREE.MeshStandardMaterial({ map: tex, roughness: o.r ?? 0.6, metalness: 0 }); m.userData.shared = true; MATS.set(k, m); }
+  return m;
+};
+function plane(g, w, h, material, x, y, z, rx = 0, ry = 0) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
+  m.position.set(x, y, z); m.rotation.set(rx, ry, 0); m.receiveShadow = true; g.add(m); return m;
 }
-// Bagged-ice merchandiser: insulated white cabinet on a dark kick plate, solid front doors with chrome
-// pulls, a blue band carrying the ICE sign, a frosted lid and a vent grille at the back. Faces +z.
-const iceSignTex = (doors) => canvasTex("icesign" + doors, 512, (g, n) => {
-  const h = n / 4;   // the sign is 4:1, drawn in the top quarter of the square canvas
-  const grad = g.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, "#5b93cc"); grad.addColorStop(1, "#3f77b3");
-  g.fillStyle = grad; g.fillRect(0, 0, n, h);
-  const flake = (x, y, s) => {
-    g.save(); g.translate(x, y); g.strokeStyle = "rgba(255,255,255,.9)"; g.lineWidth = s * 0.12; g.lineCap = "round";
-    for (let a = 0; a < 3; a++) { g.rotate(Math.PI / 3); g.beginPath(); g.moveTo(-s, 0); g.lineTo(s, 0);
-      for (const d of [-0.55, 0.55]) { g.moveTo(s * d, 0); g.lineTo(s * d + s * 0.25 * Math.sign(d), -s * 0.25); g.moveTo(s * d, 0); g.lineTo(s * d + s * 0.25 * Math.sign(d), s * 0.25); }
-      g.stroke(); }
-    g.restore();
-  };
-  const w = n / doors;
-  for (let i = 0; i < doors; i++) {
-    const cx = w * (i + 0.5);
-    g.fillStyle = "#ffffff"; g.font = `800 ${h * 0.62}px Inter, system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText("ICE", cx, h * 0.54);
-    const tw = g.measureText("ICE").width;
-    flake(cx - tw / 2 - h * 0.28, h * 0.5, h * 0.16); flake(cx + tw / 2 + h * 0.28, h * 0.5, h * 0.16);
-  }
+// a side profile (in z/y) pushed out to a slab `t` thick along x, left face at x
+function slab(g, pts, t, material, x) {
+  const s = new THREE.Shape(pts.map(([z, y]) => new THREE.Vector2(z, y)));
+  const m = new THREE.Mesh(new THREE.ExtrudeGeometry(s, { depth: t, bevelEnabled: false }), material);
+  m.rotation.y = -Math.PI / 2; m.position.x = x + t; m.castShadow = m.receiveShadow = true; g.add(m); return m;
+}
+// tilted board between two points of a side profile, spanning width w
+function tilted(g, w, th, material, z1, y1, z2, y2, x = 0, cast = false) {
+  const len = Math.hypot(z2 - z1, y2 - y1), m = part(g, w, len, th, material, x, (y1 + y2) / 2, (z1 + z2) / 2, cast);
+  m.rotation.x = Math.atan2(z2 - z1, y2 - y1); return m;
+}
+
+// Upright bagged-ice merchandiser: tall white cabinet, one door with big red I-C-E letters wearing snow caps,
+// a compressor box on top with a louvred grille and a "Packaged ICE" sign.
+const iceLetterTex = ch => canvasTex("iceletter" + ch, 256, (g, n) => {
+  g.clearRect(0, 0, n, n);
+  const fs = n * 0.98; g.font = `900 ${fs}px Georgia, "Times New Roman", serif`; g.textAlign = "center"; g.textBaseline = "alphabetic";
+  const base = n * 0.93, cap = g.measureText(ch).actualBoundingBoxAscent || fs * 0.7, w = g.measureText(ch).width;
+  g.lineJoin = "round"; g.lineWidth = n * 0.05; g.strokeStyle = "#2f3f72"; g.strokeText(ch, n / 2, base);
+  g.fillStyle = "#b9373a"; g.fillText(ch, n / 2, base);
+  // a lumpy cap of snow sitting on the letter
+  const top = base - cap, sw = Math.max(w * 0.82, n * 0.3);
+  g.beginPath(); g.moveTo(n / 2 - sw / 2, top + n * 0.05);
+  for (let k = 0; k < 5; k++) { const x0 = n / 2 - sw / 2 + sw * k / 5; g.quadraticCurveTo(x0 + sw / 10, top - n * (k % 2 ? 0.07 : 0.1), x0 + sw / 5, top - n * 0.01); }
+  g.quadraticCurveTo(n / 2 + sw / 2 + n * 0.02, top + n * 0.06, n / 2 + sw * 0.3, top + n * 0.07);
+  g.quadraticCurveTo(n / 2 + sw * 0.18, top + n * 0.13, n / 2 + sw * 0.05, top + n * 0.07);
+  g.quadraticCurveTo(n / 2 - sw * 0.2, top + n * 0.1, n / 2 - sw / 2, top + n * 0.05);
+  g.closePath(); g.fillStyle = "#ffffff"; g.fill(); g.lineWidth = n * 0.018; g.stroke();
+});
+const iceTopTex = () => canvasTex("icetop", 512, (g, n) => {
+  g.fillStyle = "#f6f6f3"; g.fillRect(0, 0, n, n);
+  g.fillStyle = "#3c4046";                                               // louvred grille, left 55%
+  for (let y = n * 0.12; y < n * 0.88; y += n * 0.055) g.fillRect(n * 0.05, y, n * 0.5, n * 0.028);
+  g.strokeStyle = "#c9cbce"; g.lineWidth = 6; g.strokeRect(n * 0.6, n * 0.1, n * 0.36, n * 0.8);
+  g.fillStyle = "#2a2a2a"; g.textAlign = "center"; g.textBaseline = "middle";
+  g.font = `italic 600 ${n * 0.075}px Georgia, serif`; g.fillText("Packaged", n * 0.78, n * 0.3);
+  g.fillStyle = "#c0393b"; g.font = `900 ${n * 0.2}px Georgia, serif`; g.fillText("ICE", n * 0.78, n * 0.6);
 });
 function iceChest(g, L, T, H) {
-  H = Math.min(H, 5.5);                    // a chest, not a walk-in: cap the height
-  const white = mat("#f1f3f4", { r: 0.45, m: 0.05 }), lid = mat("#e4e9ec", { r: 0.35 }), kick = mat("#3a3d42", { r: 0.7 });
-  const blue = mat("#4a82bf", { r: 0.5 }), chrome = mat("#cfd3d8", { m: 0.3, r: 0.25 }), seal = mat("#9aa3ab", { r: 0.8 });
-  const base = 0.35, band = Math.min(0.9, H * 0.18), lidH = 0.18;
-  part(g, L - 0.1, base, T - 0.1, kick, 0, base / 2, 0);                                        // kick plate
-  part(g, L, H - base - lidH, T, white, 0, base + (H - base - lidH) / 2, 0);                    // cabinet
-  part(g, L + 0.06, lidH, T + 0.06, lid, 0, H - lidH / 2, 0);                                   // lid
-  part(g, L - 0.3, 0.03, T - 0.3, mat("#f7fbfe", { r: 0.2 }), 0, H + 0.015, 0, false);          // frost on top
-  const by = H - lidH - band / 2 - 0.08;
-  part(g, L + 0.04, band, T + 0.04, blue, 0, by, 0);                                            // blue band (wraps the sides)
-  const doors = Math.max(1, Math.min(3, Math.round(L / 2)));
-  const sign = new THREE.Mesh(new THREE.PlaneGeometry(L - 0.12, band - 0.08), new THREE.MeshStandardMaterial({ map: (() => {
-    const t = iceSignTex(doors).clone(); t.userData.shared = false; t.needsUpdate = true; t.repeat.set(1, 0.25); t.offset.set(0, 0.75); return t; })(), roughness: 0.5 }));
-  sign.position.set(0, by, T / 2 + 0.035); g.add(sign);                                         // ICE sign on the band
-  const dh = by - band / 2 - base - 0.25, dy = base + 0.12 + dh / 2, dw = L / doors;
-  for (let i = 0; i < doors; i++) {
-    const cx = -L / 2 + dw * (i + 0.5);
-    part(g, dw - 0.14, dh, 0.08, white, cx, dy, T / 2 + 0.04);                                  // door, a little proud
-    part(g, dw - 0.06, 0.05, 0.06, seal, cx, dy + dh / 2 + 0.02, T / 2 + 0.03, false);          // gasket lines
-    part(g, dw - 0.06, 0.05, 0.06, seal, cx, dy - dh / 2 - 0.02, T / 2 + 0.03, false);
-    const hx = cx + (i % 2 ? -1 : 1) * (dw / 2 - 0.32);
-    part(g, 0.08, Math.min(1.4, dh * 0.45), 0.1, chrome, hx, dy + dh * 0.12, T / 2 + 0.16, false);   // pull handle
-    for (const yy of [dy + dh * 0.12 + 0.6, dy + dh * 0.12 - 0.6])
-      part(g, 0.06, 0.06, 0.12, chrome, hx, Math.min(yy, dy + dh / 2 - 0.1), T / 2 + 0.11, false);
-    part(g, 0.22, 0.32, 0.04, chrome, cx + (i % 2 ? 1 : -1) * (dw / 2 - 0.25), dy + dh * 0.3, T / 2 + 0.1, false);   // lock plate
-  }
-  for (let k = 0; k < 6; k++) part(g, L * 0.5, 0.05, 0.04, kick, 0, base + 0.3 + k * 0.14, -T / 2 - 0.02, false);  // rear vent slats
+  H = Math.min(H, 7.5);
+  const white = mat("#f1f1ee", { r: 0.5 }), seal = mat("#c9ccce", { r: 0.8 }), chrome = mat("#cfd3d8", { m: 0.3, r: 0.25 }), kick = mat("#d6d6d2", { r: 0.7 });
+  const top = Math.min(1.2, H * 0.17), body = H - top, base = 0.3;
+  part(g, L, base, T - 0.15, kick, 0, base / 2, -0.07);                                  // plinth
+  part(g, L, body - base, T, white, 0, base + (body - base) / 2, 0);                     // cabinet
+  for (let k = 0; k < 5; k++) part(g, L * 0.32, 0.035, 0.03, mat("#9aa0a5"), -L * 0.18, 0.08 + k * 0.045, T / 2 - 0.06, false); // kick vent
+  const dw = L - 0.3, dh = body - base - 0.35, dy = base + 0.18 + dh / 2;
+  part(g, dw + 0.08, dh + 0.08, 0.04, seal, 0, dy, T / 2 + 0.01, false);                 // door gasket
+  part(g, dw, dh, 0.08, white, 0, dy, T / 2 + 0.05);                                     // door
+  const lw = Math.min(dw * 0.72, (dh - 0.3) / 3);
+  const letterMat = ch => { const k = "iceL" + ch; let m = MATS.get(k);
+    if (!m) { m = new THREE.MeshStandardMaterial({ map: iceLetterTex(ch), transparent: true, roughness: 0.55 }); m.userData.shared = true; MATS.set(k, m); } return m; };
+  ["I", "C", "E"].forEach((ch, i) => plane(g, lw, lw, letterMat(ch), -dw * 0.05, dy + dh / 2 - 0.2 - lw * (i + 0.5), T / 2 + 0.095));   // I-C-E down the door
+  part(g, 0.09, Math.min(1.6, dh * 0.3), 0.1, chrome, dw / 2 - 0.22, dy, T / 2 + 0.16, false);          // pull
+  for (const yy of [-0.55, 0.55]) part(g, 0.06, 0.06, 0.12, chrome, dw / 2 - 0.22, dy + yy, T / 2 + 0.1, false);
+  for (const yy of [dh * 0.38, -dh * 0.38]) part(g, 0.1, 0.4, 0.06, chrome, -dw / 2 + 0.04, dy + yy, T / 2 + 0.09, false);   // hinges
+  // compressor box on top, set back a little, louvred grille and sign on its face
+  const tw = L - 0.1, td = T - 0.5;
+  part(g, tw, top, td, white, 0, body + top / 2, -0.25);
+  plane(g, tw - 0.04, top - 0.06, texMat(iceTopTex(), { r: 0.6 }), 0, body + top / 2, -0.25 + td / 2 + 0.006);
+  part(g, tw + 0.04, 0.05, td + 0.04, seal, 0, body + top, -0.25, false);
   return H;
 }
+
+// open-topped box: four walls and a floor (so a chest's insides show through its glass)
+function tub(g, L, T, y0, h, material, w = 0.14, floorY = y0) {
+  for (const sz of [-1, 1]) part(g, L, h, w, material, 0, y0 + h / 2, sz * (T / 2 - w / 2));
+  for (const sx of [-1, 1]) part(g, w, h, T - 2 * w, material, sx * (L / 2 - w / 2), y0 + h / 2, 0);
+  part(g, L - 2 * w, 0.06, T - 2 * w, material, 0, floorY, 0, false);
+}
+// Chest freezers. Big ones: red-and-white ice-cream chest with a grey rim, two curved glass sliding lids,
+// wire baskets and casters. Small ones (≤ 3 ft): plain white chest with a flat hinged glass lid.
+function freezer(g, L, T, H, r) {
+  if (L <= 3.2) return smallChest(g, L, T, Math.min(H, 3), r);
+  const bh = Math.min(H, 3.2) - 0.35, red = mat("#b84a45", { r: 0.5 }), white = mat("#f1efea", { r: 0.5 }), grey = mat("#a8adb2", { r: 0.45, m: 0.1 });
+  const caster = 0.22, wall = 0.14;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, 0.16, caster, 0.16, mat("#2d2f33"), sx * (L / 2 - 0.3), caster / 2, sz * (T / 2 - 0.3));
+  part(g, L - 0.2, 0.25, T - 0.2, mat("#3a3d42"), 0, caster + 0.12, 0, false);            // dark base / vent
+  const y0 = caster + 0.18, h = bh - y0;
+  tub(g, L, T, y0, h, white, wall, bh - 0.62);                                              // white tub, open at the top
+  tub(g, L + 0.02, T + 0.02, y0 + h * 0.14, h * 0.72, red, 0.02, y0 + h * 0.14);            // red wrap
+  for (const sz of [-1, 1]) part(g, L + 0.03, h * 0.07, 0.02, white, 0, y0 + h * 0.2, sz * (T / 2 + 0.015), false);   // white pinstripe
+  part(g, L - wall * 2, 0.02, T - wall * 2, mat("#e8eef2", { r: 0.6 }), 0, bh - 0.6, 0, false);   // interior floor
+  for (const sz of [-1, 1]) part(g, L + 0.1, 0.16, 0.2, grey, 0, bh + 0.08, sz * (T / 2 - 0.05));   // grey rim
+  for (const sx of [-1, 1]) part(g, 0.2, 0.16, T + 0.1, grey, sx * (L / 2 - 0.05), bh + 0.08, 0);
+  // contents: tubs and boxes in wire baskets
+  const list = [], wire = mat("#d9dde0", { m: 0.4, r: 0.4 }), nb = Math.max(2, Math.round(L / 1.1)), bw = (L - 0.4) / nb;
+  for (let b = 1; b < nb; b++) part(g, 0.03, 0.45, T - 0.4, wire, -L / 2 + 0.2 + b * bw, bh - 0.4, 0, false);
+  part(g, L - 0.4, 0.45, 0.03, wire, 0, bh - 0.4, 0, false);
+  for (let b = 0; b < nb; b++) {
+    const cx = -L / 2 + 0.2 + (b + 0.5) * bw, tubs = r() < 0.5;
+    for (const sz of [-1, 1]) for (const k of [-1, 1]) {
+      if (r() < 0.15) continue;
+      const it = tubs ? { w: 0.32, h: 0.3, d: 0.32 } : { w: 0.42, h: 0.12, d: 0.22, ry: (r() - 0.5) * 0.6 };
+      list.push({ ...it, x: cx + k * bw * 0.22, y: bh - 0.42 + it.h / 2, z: sz * (T / 4 - 0.05), c: pick(r, PAL.icecream) });
+    }
+  }
+  items(g, list, CYL);
+  // two curved glass lids that overlap in the middle, each with grey end caps
+  const glass = new THREE.MeshStandardMaterial({ color: "#dbe8ef", transparent: true, opacity: 0.22, roughness: 0.05, depthWrite: false });
+  const R = T * 0.62, arc = 2 * Math.asin(Math.min(0.99, (T / 2) / R)), lift = R * Math.cos(arc / 2);
+  for (const s of [-1, 1]) {
+    const len = L / 2 + 0.15, cx = s * (L / 4 - 0.04);
+    const geo = new THREE.CylinderGeometry(R, R, len, 24, 1, true, Math.PI / 2 - arc / 2, arc);
+    const m = new THREE.Mesh(geo, glass); m.rotation.z = Math.PI / 2; m.rotation.y = 0;
+    m.position.set(cx, bh + 0.16 - lift + (s > 0 ? 0.04 : 0), 0); g.add(m);
+    const cap = new THREE.Shape(); cap.absarc(0, 0, R + 0.03, Math.PI / 2 - arc / 2, Math.PI / 2 + arc / 2, false); cap.absarc(0, 0, R - 0.1, Math.PI / 2 + arc / 2, Math.PI / 2 - arc / 2, true); cap.closePath();
+    for (const e of [-1, 1]) {
+      const c = new THREE.Mesh(new THREE.ExtrudeGeometry(cap, { depth: 0.06, bevelEnabled: false }), grey);
+      c.rotation.y = Math.PI / 2; c.position.set(cx + e * len / 2 - 0.03, bh + 0.16 - lift + (s > 0 ? 0.04 : 0), 0); c.castShadow = true; g.add(c);
+    }
+    part(g, 0.18, 0.05, 0.5, grey, cx + s * (len / 2 - 0.4), bh + 0.16 + (R - lift) + (s > 0 ? 0.06 : 0.02), 0, false);   // handle
+  }
+  return bh + 0.2 + (R - lift);
+}
+function smallChest(g, L, T, H, r) {
+  const white = mat("#f2f2ef", { r: 0.5 }), grey = mat("#c4c8cc", { r: 0.5 }), dark = mat("#5a5f66", { r: 0.7 });
+  const bh = H - 0.25;
+  part(g, L, 0.5, T, white, 0, 0.25, 0);
+  tub(g, L, T, 0.5, bh - 0.5, white, 0.14, bh - 0.55);
+  part(g, L * 0.55, 0.45, 0.03, mat("#e4e4e0"), L * 0.1, 0.4, T / 2 + 0.01, false);       // lower panel
+  for (let k = 0; k < 4; k++) part(g, L * 0.48, 0.04, 0.03, dark, L * 0.1, 0.25 + k * 0.1, T / 2 + 0.025, false);   // vent slats
+  part(g, 0.35, 0.22, 0.02, mat("#ffffff"), -L * 0.22, bh - 0.9, T / 2 + 0.01, false);    // spec sticker
+  for (const sz of [-1, 1]) part(g, L + 0.04, 0.1, 0.16, grey, 0, bh + 0.05, sz * (T / 2 - 0.06));   // rim
+  for (const sx of [-1, 1]) part(g, 0.16, 0.1, T + 0.04, grey, sx * (L / 2 - 0.06), bh + 0.05, 0);
+  const list = [];
+  for (let a = 0; a < 3; a++) for (let b = 0; b < 2; b++) if (r() > 0.25)
+    list.push({ x: -L / 2 + 0.35 + a * (L - 0.7) / 2, y: bh - 0.42, z: (b - 0.5) * (T - 0.6), w: 0.36, h: 0.2, d: 0.36, c: pick(r, PAL.icecream) });
+  items(g, list, CYL);
+  const glass = mat("#dfeaf0", { o: 0.25, r: 0.05 });
+  const lid = new THREE.Group(); lid.position.set(0, bh + 0.1, -T / 2 + 0.05); g.add(lid);
+  part(lid, L - 0.1, 0.05, T - 0.1, glass, 0, 0.03, T / 2 - 0.05, false);
+  for (const sx of [-1, 1]) part(lid, 0.08, 0.08, T - 0.1, grey, sx * (L / 2 - 0.09), 0.04, T / 2 - 0.05, false);
+  part(lid, L - 0.1, 0.08, 0.08, grey, 0, 0.04, T - 0.12, false);
+  part(lid, 0.6, 0.05, 0.12, mat("#f3e07a"), 0, 0.09, T - 0.15, false);                   // price tag on the handle
+  return bh + 0.6;
+}
+
+// Wooden newspaper stand: oak frame, white shelf boards, papers in stacks on the top and middle shelves,
+// washer-fluid jugs and puzzle books on the bottom, a jerky clip-strip on one end.
+const newsTex = v => canvasTex("news" + v, 256, (g, n, r) => {
+  g.fillStyle = "#efede6"; g.fillRect(0, 0, n, n);
+  g.fillStyle = "#26272b"; g.font = `700 ${n * 0.1}px Georgia, serif`; g.textAlign = "center";
+  g.fillText(["The Daily Ledger", "Morning Post", "The Courier", "Local News"][v % 4], n / 2, n * 0.13);
+  g.fillRect(n * 0.06, n * 0.17, n * 0.88, 3);
+  g.fillStyle = "#3b3d42"; g.fillRect(n * 0.06, n * 0.22, n * 0.88, n * 0.05);               // headline
+  g.fillStyle = ["#7d8ea3", "#9a8a72", "#7f977d", "#9a7f86"][v % 4];
+  g.fillRect(n * (v % 2 ? 0.06 : 0.5), n * 0.31, n * 0.44, n * 0.32);                         // photo
+  g.fillStyle = "#a9a9a3";
+  for (let y = n * 0.31; y < n * 0.95; y += n * 0.035) {
+    const inPhoto = y < n * 0.64;
+    g.fillRect(n * (inPhoto ? (v % 2 ? 0.53 : 0.06) : 0.06), y, n * (inPhoto ? 0.41 : 0.88) * (0.7 + r() * 0.3), n * 0.014);
+  }
+});
+function newsStand(g, L, T, H, r) {
+  H = Math.min(H, 3.6);
+  const oak = mat("#c89a5e", { r: 0.7 }), board = mat("#f1f0ec", { r: 0.6 }), post = 0.12, d = Math.min(T, 1.8);
+  const levels = [0.22, H * 0.47, H - 0.08];
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, post, H, post, oak, sx * (L / 2 - post / 2), H / 2, sz * (d / 2 - post / 2));
+  for (const sx of [-1, 1]) {
+    for (const y of [0.12, H - 0.05]) part(g, post * 0.8, 0.16, d - post, oak, sx * (L / 2 - post / 2), y, 0);
+    part(g, 0.04, H - 0.3, d - post * 2, board, sx * (L / 2 - post / 2), H / 2, 0, false);   // white side panels
+  }
+  part(g, L - post * 2, H - 0.3, 0.04, board, 0, H / 2, -d / 2 + 0.04, false);              // back
+  levels.forEach(y => {
+    part(g, L - post, 0.06, d - 0.06, board, 0, y, 0);
+    part(g, L - post * 2, 0.14, 0.05, oak, 0, y - 0.06, d / 2 - 0.02);                        // oak front lip
+  });
+  // paper stacks: 4 across on top, 3 in the middle, each a flat stack with a printed front page
+  const stacks = (y, n, z0, depth) => {
+    const w = (L - 0.4) / n;
+    for (let i = 0; i < n; i++) {
+      const h = 0.07 + r() * 0.08, cx = -L / 2 + 0.2 + w * (i + 0.5), v = Math.floor(r() * 4), dep = Math.min(depth, w * 1.25);
+      const s = part(g, w - 0.08, h, dep, mat("#e6e3da", { r: 0.9 }), cx + (r() - 0.5) * 0.05, y + 0.03 + h / 2, z0, false); s.rotation.y = (r() - 0.5) * 0.08;
+      plane(g, w - 0.1, dep - 0.02, texMat(newsTex(v), { r: 0.9 }), s.position.x, y + 0.035 + h, z0, -Math.PI / 2, 0).rotation.z = s.rotation.y;
+    }
+  };
+  stacks(levels[2], 4, 0.05, d - 0.2);
+  stacks(levels[1], 3, 0.1, d - 0.35);
+  // bottom: blue washer-fluid jugs and a couple of puzzle books
+  const jug = mat("#3f7fc4", { o: 0.85, r: 0.25 }), cap = mat("#2a4f8f");
+  for (let i = 0; i < Math.max(2, Math.floor((L - 1.2) / 0.5)); i++) {
+    const x = -L / 2 + 0.4 + i * 0.5;
+    part(g, 0.42, 0.85, 0.38, jug, x, levels[0] + 0.03 + 0.425, -0.05);
+    part(g, 0.12, 0.1, 0.12, cap, x + 0.1, levels[0] + 0.93, -0.05, false);
+    part(g, 0.36, 0.26, 0.01, mat("#e9d36a"), x, levels[0] + 0.45, 0.145, false);           // label
+  }
+  for (let i = 0; i < 2; i++) { const b = part(g, 0.6, 0.04, 0.8, mat(["#8e6aa8", "#d9a441"][i]), L / 2 - 0.65, levels[0] + 0.05 + i * 0.045, 0.15, false); b.rotation.y = 0.15 * (i ? 1 : -1); }
+  // clip-strip of jerky on the right end
+  const wire = mat("#2b2d31", { m: 0.4 });
+  part(g, 0.03, H * 0.55, 0.03, wire, L / 2 + 0.06, H * 0.6, d / 2 - 0.3, false);
+  for (let k = 0; k < 2; k++) part(g, 0.04, 0.75, 0.4, mat("#a8342f", { r: 0.5 }), L / 2 + 0.1, H * 0.72 - k * 0.6, d / 2 - 0.3 - k * 0.05, false);
+  return H;
+}
+
+// Slant-front wooden cigar case: honey-oak sides, glass front leaning back as it rises, two glass bays,
+// lit tiers of cigar boxes inside, a chain across the front and an antique register on top.
+function cigarCase(g, L, T, H, r) {
+  H = Math.min(H, 4);
+  const oak = mat("#c08d4f", { r: 0.65 }), dark = mat("#7a5532", { r: 0.75 }), brass = mat("#b89a5a", { m: 0.55, r: 0.35 });
+  const kick = 0.45, sill = 0.82, topT = 0.16, lean = Math.min(0.85, T * 0.3);
+  const fz = T / 2, bz = -T / 2, gz1 = fz - 0.05, gz2 = fz - lean;         // glass bottom/top edge
+  part(g, L - 0.2, kick, T - 0.5, dark, 0, kick / 2, -0.15);                                  // recessed plinth
+  const side = [[bz, kick], [fz, kick], [fz, sill], [gz2 + 0.05, H - topT], [bz, H - topT]];
+  for (const sx of [-1, 1]) slab(g, side, 0.16, oak, sx > 0 ? L / 2 - 0.16 : -L / 2);        // side panels
+  part(g, L - 0.3, sill - kick, 0.12, oak, 0, (kick + sill) / 2, fz - 0.06);                   // bottom front rail
+  part(g, L, topT, gz2 - bz + 0.18, oak, 0, H - topT / 2, (bz + gz2 + 0.18) / 2);              // top
+  part(g, L - 0.3, H - topT - kick, 0.12, oak, 0, kick + (H - topT - kick) / 2, bz + 0.06);    // back
+  const glass = mat("#e3eef3", { o: 0.12, r: 0.04 });
+  tilted(g, L - 0.32, 0.03, glass, gz1, sill, gz2, H - topT);
+  tilted(g, 0.12, 0.06, oak, gz1 + 0.03, sill, gz2 + 0.03, H - topT, 0, true);                 // centre mullion
+  for (const sx of [-1, 1]) tilted(g, 0.04, 0.04, mat("#d8dadc", { m: 0.6, r: 0.3 }), gz1 + 0.03, sill, gz2 + 0.03, H - topT, sx * L / 4);
+  // inside: warm floor, two stepped tiers, a glass shelf, a light under the top
+  part(g, L - 0.34, 0.04, T - 0.3, mat("#5b3c22", { r: 0.9 }), 0, sill, 0, false);
+  const tier = (y, z, depth) => part(g, L - 0.34, y - sill, depth, mat("#6a4527", { r: 0.85 }), 0, (y + sill) / 2, z, false);
+  tier(sill + 0.45, bz + 0.12 + (T * 0.38) / 2, T * 0.38);
+  part(g, L - 0.34, 0.025, T * 0.42, glass, 0, H * 0.72, bz + 0.12 + T * 0.21, false);
+  part(g, L - 0.4, 0.03, 0.2, mat("#fff3da", { e: 0.6 }), 0, H - topT - 0.04, (gz2 + bz) / 2, false);
+  const list = [], row = (y, z, tilt, depth) => {
+    for (let x = -L / 2 + 0.3, k = 0; x < L / 2 - 0.5 && k < 30; k++) {
+      const w = 0.42 + r() * 0.28, c = r() < 0.18 ? pick(r, ["#d9b44a", "#a93a35", "#2f4a3a", "#e8e2d2"]) : pick(r, PAL.cigars);
+      list.push({ x: x + w / 2, y, z, w, h: 0.14, d: depth, rx: tilt, ry: (r() - 0.5) * 0.12, c });
+      if (r() < 0.6) list.push({ x: x + w / 2, y: y + 0.17, z: z - depth / 2 - 0.02, w: w * 0.98, h: 0.32, d: 0.03, rx: -0.35, c: shade(c, 0.08) });   // open lid
+      x += w + 0.1 + r() * 0.08;
+    }
+  };
+  row(sill + 0.1, fz - lean * 0.2 - 0.45, 0.25, 0.5);
+  row(sill + 0.55, bz + 0.12 + T * 0.19, 0.12, 0.45);
+  row(H * 0.72 + 0.08, bz + 0.12 + T * 0.21, 0, 0.4);
+  items(g, list);
+  // gold chain swagged across the glass
+  const pts = [];
+  for (let k = 0; k <= 16; k++) {
+    const t = k / 16, x = -L / 2 + 0.25 + t * (L - 0.5), sag = Math.sin(t * Math.PI * 2) ** 2 * 0.35;
+    const y = H * 0.62 - sag, z = gz1 - (y - sill) / (H - topT - sill) * (gz1 - gz2) + 0.06;
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const chain = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 48, 0.022, 5), brass); g.add(chain);
+  // antique register on the top at one end
+  const rx = -L / 2 + 1.05, ty = H;
+  part(g, 1.5, 0.3, 1.1, mat("#4b3a2a", { r: 0.7 }), rx, ty + 0.15, bz + 0.75);               // wooden till drawer
+  part(g, 1.3, 0.55, 0.95, mat("#6d6459", { m: 0.35, r: 0.45 }), rx, ty + 0.58, bz + 0.72);    // cast body
+  const kb = part(g, 1.2, 0.4, 0.06, mat("#5f574d", { m: 0.35, r: 0.45 }), rx, ty + 0.62, bz + 1.22); kb.rotation.x = -0.6;
+  const keys = [];
+  for (let a = 0; a < 6; a++) for (let b = 0; b < 3; b++)
+    keys.push({ x: rx - 0.5 + a * 0.2, y: ty + 0.55 + b * 0.09, z: bz + 1.25 - b * 0.06, w: 0.1, h: 0.05, d: 0.08, c: b ? "#e8e1cf" : "#b4473f" });
+  items(g, keys);
+  part(g, 0.08, 0.5, 0.08, mat("#8f8a80", { m: 0.5 }), rx + 0.72, ty + 0.65, bz + 0.72, false);   // crank
+  return H + 1.0;
+}
+
+// Checkout counter: kraft-brown panels in pale-wood frames, white top, pale baseboard. The customer side is
+// the back (-z) when the counter faces the clerk; the clerk side has an open shelf.
+function counter(g, L, T, H, r) {
+  const top = Math.min(H, 3.4), kraft = mat("#c9a57c", { r: 0.85 }), trim = mat("#e6d6b8", { r: 0.7 }), white = mat("#f3f1ec", { r: 0.45 });
+  const base = 0.35, body = top - 0.12;
+  part(g, L, body, T, kraft, 0, body / 2, 0);
+  part(g, L + 0.04, base, T + 0.04, trim, 0, base / 2, 0);                                      // baseboard
+  part(g, L + 0.3, 0.12, T + 0.25, white, 0, top - 0.06, -0.06);                                // white top, overhangs the customer side
+  // framed panels on the customer face (-z) and both ends
+  const frame = (len, cx, cz, ry) => {
+    const n = Math.max(1, Math.round(len / 3.6)), pw = len / n, gr = new THREE.Group(); gr.position.set(cx, 0, cz); gr.rotation.y = ry; g.add(gr);
+    part(gr, len, 0.16, 0.05, trim, 0, body - 0.1, 0, false);
+    part(gr, len, 0.16, 0.05, trim, 0, base + 0.08, 0, false);
+    for (let i = 0; i <= n; i++) part(gr, 0.16, body - base, 0.05, trim, -len / 2 + i * pw + (i === 0 ? 0.08 : i === n ? -0.08 : 0), base + (body - base) / 2, 0, false);
+  };
+  frame(L, 0, -T / 2 - 0.02, Math.PI);
+  frame(T, -L / 2 - 0.02, 0, -Math.PI / 2); frame(T, L / 2 + 0.02, 0, Math.PI / 2);
+  // signs taped to the customer face
+  plane(g, 0.75, 0.6, mat("#f7f6f2"), -L * 0.08, body * 0.62, -T / 2 - 0.05, 0, Math.PI);
+  plane(g, 0.55, 0.85, mat("#d9783a"), L * 0.32, body * 0.6, -T / 2 - 0.05, 0, Math.PI);
+  // clerk side: an open shelf recess
+  part(g, L - 1.2, body * 0.4, 0.04, mat("#7a6248", { r: 0.9 }), 0, base + body * 0.32, T / 2 + 0.005, false);
+  part(g, L - 1.2, 0.05, 0.3, white, 0, base + body * 0.3, T / 2 - 0.1, false);
+  // on top: register, card reader, a tiered wooden candy box with jars, honey jars, a donation jar
+  const dark = mat("#26292e", { r: 0.5 }), y = top;
+  const rx = L / 2 - 1.4;
+  part(g, 1.3, 0.42, 1.0, dark, rx, y + 0.21, 0.1);
+  const sc = part(g, 0.95, 0.65, 0.06, dark, rx, y + 0.78, -0.15); sc.rotation.x = -0.25;
+  const gl = part(g, 0.82, 0.52, 0.02, mat("#9cc6e8", { e: 0.3 }), rx, y + 0.78, -0.11, false); gl.rotation.x = -0.25;
+  part(g, 0.3, 0.2, 0.4, dark, rx - 1.0, y + 0.1, -T / 2 + 0.45);
+  const cx = -L / 2 + 2.2, wood = mat("#c79a5f", { r: 0.7 });
+  for (let s = 0; s < 3; s++) part(g, 1.6, 0.25 + s * 0.28, 0.32, wood, cx, y + (0.25 + s * 0.28) / 2, -T / 2 + 0.45 + s * 0.3);   // tiered candy box
+  const jars = [];
+  for (let s = 0; s < 3; s++) for (let k = 0; k < 4; k++) jars.push({ x: cx - 0.55 + k * 0.37, y: y + 0.25 + s * 0.28 + 0.14, z: -T / 2 + 0.45 + s * 0.3, w: 0.24, h: 0.26, d: 0.24, c: pick(r, PAL.candy) });
+  for (let k = 0; k < 3; k++) jars.push({ x: cx + 1.05 + k * 0.2, y: y + 0.2, z: -T / 2 + 0.5, w: 0.17, h: 0.4, d: 0.17, c: "#c98a2b" });   // honey
+  jars.push({ x: rx - 1.0, y: y + 0.22, z: 0.25, w: 0.3, h: 0.45, d: 0.3, c: "#e7e2d4" });                                             // donation jar
+  items(g, jars, CYL);
+  return top;
+}
+
 function wine(g, L, T, H, dbl, r, col) {
   const wood = mat(look.wood || "#8a6a4c", { r: 0.75 }), dark = mat("#4a3826", { r: 0.85 });
   part(g, L, 0.3, T, dark, 0, 0.15, 0);
@@ -462,21 +696,6 @@ function wine(g, L, T, H, dbl, r, col) {
     }
   }
   items(g, list, CYL);
-}
-function counter(g, L, T, H, r, col) {
-  const dark = mat("#2a2e35", { r: 0.5 });
-  part(g, L, H - 0.15, T, mat(look.wood || col, { r: 0.7 }), 0, (H - 0.15) / 2, 0);
-  part(g, L + 0.25, 0.15, T + 0.25, mat("#ece6da", { r: 0.45 }), 0, H - 0.075, 0);
-  part(g, L - 0.4, 0.4, 0.05, mat("#141820"), 0, 0.2, T / 2 + 0.01, false);
-  const rx = -L / 4;
-  part(g, 1.3, 0.45, 1.0, dark, rx, H + 0.225, 0);                                    // register
-  const sc = part(g, 1.0, 0.7, 0.06, dark, rx, H + 0.8, -0.25); sc.rotation.x = -0.2;  // screen
-  const gl = part(g, 0.86, 0.56, 0.02, mat("#9cc6e8", { e: 0.3 }), rx, H + 0.8, -0.21, false); gl.rotation.x = -0.2;
-  part(g, 0.35, 0.25, 0.45, dark, rx + 1.1, H + 0.125, T / 2 - 0.4);                   // card reader
-  const list = [];
-  for (let x = L / 4 - 0.8, i = 0; i < 8 && x < L / 2 - 0.2; i++, x += 0.22)
-    list.push({ x, y: H + 0.12, z: T / 2 - 0.3, w: 0.18, h: 0.24, d: 0.12, c: pick(r, PAL.candy) });  // impulse-buy rack
-  items(g, list);
 }
 function displayCase(g, L, T, H, r, col) {
   const glass = mat("#e2eef4", { o: 0.14, r: 0.05 }), metal = mat(look.metal, { m: 0.6, r: 0.3 });
@@ -502,17 +721,6 @@ function table(g, L, T, H, col) {
   part(g, L, th, T, mat("#b4916b", { r: 0.8 }), 0, H - th / 2, 0);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, leg, H - th, leg, dark, sx * (L / 2 - leg), (H - th) / 2, sz * (T / 2 - leg));
   if (L > 1.2 && T > 1.2) part(g, L - 0.6, 0.08, T - 0.6, dark, 0, Math.min(0.6, H * 0.25), 0, false);
-}
-function newsStand(g, L, T, H, r, col) {
-  const frame = mat(col), list = [], tiers = 3, td = T / tiers;
-  part(g, L, 0.4, T, frame, 0, 0.2, 0);
-  for (let i = 0; i < tiers; i++) {
-    const tz = T / 2 - (i + 0.5) * td, hi = 0.4 + (i + 1) * Math.max(0.2, (H - 0.9) / tiers);
-    part(g, L, hi, td, frame, 0, hi / 2, tz);
-    for (let x = -L / 2 + 0.15, k = 0; x < L / 2 - 0.9 && k < 20; x += 0.95, k++)
-      list.push({ x: x + 0.4, y: hi + 0.08, z: tz, w: 0.8, h: 0.14, d: td * 0.8, rx: 0.22, c: pick(r, PAL.papers) });  // newspaper stacks
-  }
-  items(g, list);
 }
 function backRoom(g, L, T, r) {
   const fl = part(g, L, 0.04, T, look.grass ? new THREE.MeshStandardMaterial({ map: concreteTex(), roughness: 0.95 }) : mat(look.base, { r: 0.95 }), 0, 0.02, 0, false);
@@ -544,12 +752,12 @@ export function buildFixture(z, size) {
     case "backroom": top = backRoom(m, L, T, r); break;
     case "cooler": cooler(m, L, T, H, r, col); break;
     case "icechest": top = iceChest(m, L, T, H); break;
-    case "freezer": freezer(m, L, T, H, r, col); break;
+    case "freezer": top = freezer(m, L, T, H, r); break;
     case "wine": wine(m, L, T, H, f.freestanding, r, col); break;
-    case "counter": counter(m, L, T, H, r, col); top = H + 1.2; break;
-    case "case": displayCase(m, L, T, H, r, col); break;
+    case "counter": top = counter(m, L, T, H, r) + 1.2; break;
+    case "case": top = /cigar|humidor/i.test((z.key || "") + " " + (z.label || "")) ? cigarCase(m, L, T, H, r) : (displayCase(m, L, T, H, r, col), H); break;
     case "table": table(m, L, T, H, col); break;
-    case "news": newsStand(m, L, T, H, r, col); break;
+    case "news": top = newsStand(m, L, T, H, r); break;
     default: gondola(m, L, T, H, f.freestanding, style, r, col);
   }
   m.rotation.y = f.rot;
