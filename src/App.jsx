@@ -407,6 +407,7 @@ const FLOOR_WALLS = [
 // the constants above are the fallback until it loads.
 const DEFAULT_LAYOUT={size:STORE_SIZE,zones:FLOOR_ZONES,walls:FLOOR_WALLS};
 const LayoutCtx=createContext(DEFAULT_LAYOUT);
+const TaxCtx=createContext(0.0625);   // sales tax rate from settings
 const loadStore3d=()=>import("./store3d.js"); // three.js only downloads when someone opens 3D
 
 function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly,theme,fill=false}){
@@ -648,7 +649,9 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
   const oos=item.outOfStock;
   const isPackSub=PACK_SUBS.includes(item.subcategory);
   const isWineSub=WINE_SUBS.includes(item.subcategory);
-  const todayPrice=priceOn(item), total=todayPrice+(item.deposit||0);
+  const taxRate=useContext(TaxCtx);
+  const todayPrice=priceOn(item), tax=item.taxable?todayPrice*taxRate:0, total=todayPrice+tax+(item.deposit||0);
+  const totalLabel=[item.taxable&&"tax",item.deposit>0&&"dep."].filter(Boolean).join(" & ");
   const hasInventory=item.inventory!=null;
   const isLowStock=hasInventory&&item.inventory>0&&item.inventory<=5;
   const zoneName=findZone(layout.zones,item.mapZone)?.label||item.location||item.mapZone;
@@ -697,14 +700,14 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
         <div style={{textAlign:"right",flexShrink:0}}>
           <div style={{fontSize:24,fontWeight:700,lineHeight:1.1,color:oos?"var(--muted)":T.accent,fontVariantNumeric:"tabular-nums",letterSpacing:"-0.02em"}}>${todayPrice.toFixed(2)}</div>
           {item.dayPrices?.length>0&&<div style={{fontSize:11,color:"var(--muted)",marginTop:3}}>today</div>}
-          {item.deposit>0&&<div style={{fontSize:12.5,fontWeight:600,color:"var(--muted)",marginTop:3,fontVariantNumeric:"tabular-nums"}}>${total.toFixed(2)} w/ dep.</div>}
+          {totalLabel&&<div style={{fontSize:12.5,fontWeight:600,color:"var(--muted)",marginTop:3,fontVariantNumeric:"tabular-nums"}}>${total.toFixed(2)} w/ {totalLabel}</div>}
         </div>
       </div>
       {/* Animated expand section */}
       <div style={{display:"grid",gridTemplateRows:expanded?"1fr":"0fr",transition:"grid-template-rows .32s var(--ease)"}}>
         <div style={{overflow:"hidden"}}>
           <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--border)",position:"relative",zIndex:2,opacity:expanded?1:0,transition:"opacity .25s var(--ease)"}} onClick={e=>e.stopPropagation()}>
-            {item.deposit>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10,fontSize:13,color:"var(--muted)"}}><span>Price ${todayPrice.toFixed(2)} + deposit ${item.deposit.toFixed(2)}</span><span style={{fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
+            {totalLabel&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10,fontSize:13,color:"var(--muted)"}}><span>Price ${todayPrice.toFixed(2)}{item.taxable&&` + tax $${tax.toFixed(2)}`}{item.deposit>0&&` + deposit $${item.deposit.toFixed(2)}`}</span><span style={{fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
             {item.notes&&<div style={{fontSize:13,color:"var(--muted)",marginBottom:10,padding:"9px 11px",background:"var(--surface-2)",borderRadius:10,lineHeight:1.5}}>{item.notes}</div>}
             {item.expiryDate&&(()=>{
               const days=Math.ceil((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
@@ -1028,6 +1031,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 // ── CategoryPage ──────────────────────────────────────────────────────────────
 function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false,bannerOffset=0}){
   const layout=useContext(LayoutCtx);
+  const taxRate=useContext(TaxCtx);
   function requireManager(){
     if(!isManager){onRequireManager();return false;}
     if(managerDisabled&&!isDev){onRequireManager();return false;}
@@ -1111,7 +1115,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
     return()=>clearTimeout(t);
   },[scrollToItem]);
 
-  const emptyForm={name:"",dayPrices:[],subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",gilliesRecommendation:false,...emptyAlcoholForm(category.subcategories[0].key)};
+  const emptyForm={name:"",dayPrices:[],subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",gilliesRecommendation:false,taxable:false,...emptyAlcoholForm(category.subcategories[0].key)};
   const [form,setForm]=useState(emptyForm);
 
   function setSubcategory(sub){setForm(f=>({...f,subcategory:sub,...emptyAlcoholForm(sub)}));}
@@ -1146,7 +1150,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       outOfStock:item.outOfStock||false,
       mapZone:item.mapZone||null,
       expiryDate:item.expiryDate||"",
-      gilliesRecommendation:item.gilliesRecommendation||false});
+      gilliesRecommendation:item.gilliesRecommendation||false,taxable:item.taxable||false});
     setMapOpen(!!item.mapZone);
     setShowForm(true);
   }
@@ -1172,6 +1176,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       mapZone:form.mapZone||null,
       expiryDate:form.expiryDate||"",
       gilliesRecommendation:form.gilliesRecommendation||false,
+      taxable:!!form.taxable,
       dayPrices:dayPricesOut,
     };
     const extra=PACK_SUBS.includes(form.subcategory)
@@ -1184,6 +1189,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       inventory:base.inventory, out_of_stock:base.outOfStock,
       map_zone:base.mapZone, expiry_date:base.expiryDate||null,
       gillies_recommendation:base.gilliesRecommendation||false,
+      taxable:base.taxable,
       pack_size:extra.packSize||null, container_type:extra.containerType||null,
       deposit:extra.deposit??null, wine_type:extra.wineType||null,
       // only sent when there are day prices (or were), so nothing else depends on the column existing
@@ -1509,6 +1515,18 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
               </button>
             </div>
 
+            {/* Sales tax toggle */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.taxable?"var(--info)":T.border}`,borderRadius:10,transition:"border-color 0.25s"}}>
+              <div>
+                <div style={{fontSize:14,color:"var(--text)"}}>Charge sales tax</div>
+                <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>{form.taxable&&form.price&&!isNaN(+form.price)?`$${(+form.price*(1+taxRate)).toFixed(2)} with ${(taxRate*100).toFixed(2)}% tax`:`Adds ${(taxRate*100).toFixed(2)}% to the price`}</div>
+              </div>
+              <button onClick={()=>setForm(f=>({...f,taxable:!f.taxable}))} aria-pressed={!!form.taxable} aria-label="Charge sales tax"
+                style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.taxable?"var(--info)":T.badge,position:"relative",transition:"background 0.22s var(--ease-out)",flexShrink:0}}>
+                <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.taxable?25:3,transition:"left 0.28s var(--ease-out)",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+              </button>
+            </div>
+
             {/* Gillie's Recommendation toggle */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.gilliesRecommendation?"#f0c04044":T.border}`,borderRadius:10,transition:"border-color 0.25s ease"}}>
               <div>
@@ -1756,6 +1774,47 @@ function DevShiftPresets({list,onChange,storeHours}){
 }
 
 // ── Dev console: combine old "Paper (Sunday)" / "Paper (Monday-Saturday)" pairs ──
+function DevTaxBulk({items,setItems,taxRate}){
+  const [busy,setBusy]=useState(null), [msg,setMsg]=useState("");
+  async function setSub(cat,sub,taxable){
+    const ids=items.filter(i=>i.category===cat&&i.subcategory===sub.key).map(i=>i.id);
+    if(!ids.length)return;
+    setBusy(sub.key);setMsg("");
+    const {error}=await sb.from("items").update({taxable}).in("id",ids);
+    setBusy(null);
+    if(error){setMsg(/taxable/.test(error.message||"")?"✕ Run the SQL first: alter table items add column if not exists taxable boolean not null default false;":`✕ ${error.message}`);return;}
+    const set=new Set(ids);
+    setItems(prev=>prev.map(i=>set.has(i.id)?{...i,taxable}:i));
+  }
+  const small=on=>({padding:"6px 10px",minHeight:32,background:on?`${DT.accent}22`:"transparent",border:`1px solid ${on?DT.accent+"66":DT.cardBorder}`,borderRadius:6,color:on?DT.accent:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.04em"});
+  return(
+    <>
+      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// data.salesTax</div>
+      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
+        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Sales Tax by Subcategory</div>
+        <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em",lineHeight:1.6}}>// sets the {(taxRate*100).toFixed(2)}% tax switch on every item in a subcategory; single items can still be changed in their edit form</div>
+        {CATEGORIES.map(c=>{
+          const subs=c.subcategories.map(sub=>({sub,list:items.filter(i=>i.category===c.key&&i.subcategory===sub.key)})).filter(x=>x.list.length);
+          if(!subs.length)return null;
+          return(
+            <div key={c.key} style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:DT.accent,letterSpacing:"0.08em",textTransform:"uppercase",margin:"6px 0"}}>{c.name}</div>
+              {subs.map(({sub,list})=>{const n=list.filter(i=>i.taxable).length;return(
+                <div key={sub.key} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:`1px solid ${DT.cardBorder}`}}>
+                  <div style={{flex:1,minWidth:0,fontSize:12,color:DT.text}}>{sub.name}<div style={{fontSize:10.5,color:DT.subText}}>{n===0?"no tax":n===list.length?"all taxed":`${n} of ${list.length} taxed`} · {list.length} item{list.length!==1?"s":""}</div></div>
+                  <button disabled={busy===sub.key} onClick={()=>setSub(c.key,sub,true)} style={small(n===list.length)}>TAX ALL</button>
+                  <button disabled={busy===sub.key} onClick={()=>setSub(c.key,sub,false)} style={small(n===0)}>NO TAX</button>
+                </div>
+              );})}
+            </div>
+          );
+        })}
+        {msg&&<div style={{fontSize:11,color:DT.red,marginTop:8}}>{msg}</div>}
+      </div>
+    </>
+  );
+}
+
 function DevNewspaperMerge({items,setItems}){
   const plan=newspaperMergePlan(items);
   const [state,setState]=useState(null); // null | "ask" | "busy" | message
@@ -1976,6 +2035,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
           </div>
         </div>
         <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+        <DevTaxBulk items={items} setItems={setItems} taxRate={taxRate}/>
         <DevNewspaperMerge items={items} setItems={setItems}/>
         <DevDataTools items={items} setItems={setItems}/>
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// store.builder</div>
@@ -2153,7 +2213,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
                 {canUndo&&(
                   <button onClick={async()=>{
                     const s=entry.snapshot;
-                    const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,gillies_recommendation:s.gilliesRecommendation||false};
+                    const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,taxable:s.taxable||false,gillies_recommendation:s.gilliesRecommendation||false};
                     const {error}=await sb.from("items").update(row).eq("id",s.id);
                     if(!error){setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));}
                   }} style={{marginTop:6,width:"100%",padding:"5px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:5,color:"#f0c040",fontSize:10,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.06em",textAlign:"center"}}>
@@ -3627,6 +3687,7 @@ export default function App(){
             wineType:row.wine_type||null,
             dayPrices:parseDayPrices(row.day_prices),
             gilliesRecommendation:row.gillies_recommendation||false,
+            taxable:row.taxable||false,
           })));
         }
         const rate=await fetchTaxRate();
@@ -3681,6 +3742,7 @@ export default function App(){
         packSize:entry.snapshot.packSize,containerType:entry.snapshot.containerType,
         deposit:entry.snapshot.deposit,wineType:entry.snapshot.wineType,
         gilliesRecommendation:entry.snapshot.gilliesRecommendation,
+        taxable:entry.snapshot.taxable||false,
       }:null;
       const serialized={...entry,timestamp:entry.timestamp instanceof Date?entry.timestamp.toISOString():entry.timestamp,snapshot:snap};
       const next=[serialized,...prev].slice(0,10);
@@ -3725,7 +3787,7 @@ export default function App(){
   function handlePageChange(p){setPage(p);if(p!=="pricing")setSelectedCategory(null);}
 
   return(
-    <LayoutCtx.Provider value={layout}>
+    <LayoutCtx.Provider value={layout}><TaxCtx.Provider value={taxRate}>
     <div style={{maxWidth:480,margin:"0 auto",position:"relative"}}>
       <style>{`
         @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
@@ -3836,6 +3898,6 @@ export default function App(){
       <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
       <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
     </div>
-    </LayoutCtx.Provider>
+    </TaxCtx.Provider></LayoutCtx.Provider>
   );
 }
