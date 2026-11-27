@@ -92,6 +92,7 @@ function buildThemeVariant(theme,mode,key){
 }
 
 
+const DEFAULT_MANAGER_PIN="3018", DEV_PIN="130654";
 const DEV_TABS=[{id:"settings",label:"Settings",icon:"settings"},{id:"items",label:"Items",icon:"database"},{id:"map",label:"Map",icon:"map"},{id:"bugs",label:"Bugs",icon:"bug"}];
 const DEV_CARD={background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:16,marginBottom:14,boxShadow:"var(--shadow)"};
 const DEV_TITLE={fontSize:15,fontWeight:700,color:"var(--text)",letterSpacing:"-0.01em",marginBottom:3};
@@ -2019,7 +2020,7 @@ function StoreBuilderPanel({layout,onSave}){
   return <div ref={ref} style={{marginBottom:24}}/>;
 }
 
-function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
+function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
   const [showBuilder,setShowBuilder]=useState(false);
   const [tab,setTab]=useState(()=>{try{return sessionStorage.getItem("dev-tab")||"settings";}catch{return "settings";}});
   function pickTab(t){setTab(t);window.scrollTo(0,0);try{sessionStorage.setItem("dev-tab",t);}catch{}}
@@ -2047,6 +2048,20 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
   const [taxRateInput,setTaxRateInput]=useState(String((taxRate*100).toFixed(2)));
   const [taxRateSaved,setTaxRateSaved]=useState(false);
   const [confirmDisable,setConfirmDisable]=useState(false);
+  const [pinShown,setPinShown]=useState(false);
+  const [pinForm,setPinForm]=useState(false);
+  const [newPin,setNewPin]=useState(""),[newPin2,setNewPin2]=useState("");
+  const [pinMsg,setPinMsg]=useState(""),[pinBusy,setPinBusy]=useState(false);
+  async function savePin(){
+    if(newPin.length<4)return setPinMsg("The PIN needs 4 to 6 digits.");
+    if(newPin!==newPin2)return setPinMsg("The two PINs don't match.");
+    if(newPin===DEV_PIN)return setPinMsg("That PIN is taken. Pick a different one.");
+    if(newPin===managerPin)return setPinMsg("That's already the PIN.");
+    setPinBusy(true);
+    try{await onManagerPinChange(newPin);setPinForm(false);setPinShown(false);setPinMsg("");}
+    catch(e){setPinMsg("Couldn't save the PIN. Check your connection and try again.");}
+    setPinBusy(false);
+  }
   const [showNotifForm,setShowNotifForm]=useState(false);
   const [notifMsg,setNotifMsg]=useState("");
   const [notifColor,setNotifColor]=useState("blue");
@@ -2081,33 +2096,64 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
       </PageHeader>
       <div style={{padding:"16px 14px"}}>
         {tab==="settings"&&<div key="settings" style={{animation:"fadeUp .3s var(--ease-out)"}}>
-        <div style={{background:DT.cardBg,border:`1px solid ${managerDisabled?"#e5484d44":DT.cardBorder}`,borderRadius:16,padding:16,boxShadow:"var(--shadow)",marginBottom:14,transition:"border-color 0.3s"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+        <section style={{...DEV_CARD,borderColor:managerDisabled?`${DT.red}66`:"var(--border)",transition:"border-color .3s var(--ease)"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:3}}>
             <div style={{...DEV_TITLE,marginBottom:0}}>Manager access</div>
-            <span style={{fontSize:10,padding:"3px 8px",background:managerDisabled?`${DT.red}15`:`${DT.green}15`,color:managerDisabled?DT.red:DT.green,border:`1px solid ${managerDisabled?DT.red+"44":DT.green+"44"}`,borderRadius:4}}>{managerDisabled?"DISABLED":"ACTIVE"}</span>
+            <span style={{fontSize:12,fontWeight:600,padding:"3px 10px",borderRadius:999,display:"inline-flex",alignItems:"center",gap:5,
+              background:managerDisabled?"var(--danger-soft)":"var(--success-soft)",color:managerDisabled?"var(--danger)":"var(--success)"}}>
+              <span style={{width:6,height:6,borderRadius:"50%",background:"currentColor"}}/>{managerDisabled?"Off":"On"}
+            </span>
           </div>
-          {managerDisabled&&<div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#e5484d10",border:"1px solid #e5484d30",borderRadius:10}}>Manager sign-in is turned off right now.</div>}
+          <div style={DEV_DESC}>Managers sign in with this PIN to add, edit and delete items.</div>
 
-          {/* Confirm modal */}
-          {confirmDisable&&(
-            <div style={{background:"var(--danger-soft)",border:"1px solid #e5484d44",borderRadius:8,padding:14,marginBottom:10,animation:"popIn 0.2s ease"}}>
-              <div style={{fontSize:12,color:DT.red,fontWeight:700,marginBottom:6}}>Turn off manager access?</div>
-              <div style={{fontSize:11,color:DT.subText,marginBottom:10,lineHeight:1.5}}>
-                This will immediately block all manager PIN logins. You can re-enable at any time from this page, or via the Supabase SQL editor:<br/>
-                <span style={{color:DT.accent,fontFamily:"var(--mono)",fontSize:10}}>update app_settings set value='false' where key='manager_disabled';</span>
+          {/* PIN row */}
+          <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"var(--surface-2)",borderRadius:12,marginBottom:10}}>
+            <span style={{color:"var(--muted)",display:"inline-flex"}}><Icon name="lock" size={17}/></span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:12,color:"var(--muted)"}}>Manager PIN</div>
+              <div style={{fontSize:17,fontWeight:700,color:"var(--text)",letterSpacing:pinShown?"0.12em":"0.2em",fontVariantNumeric:"tabular-nums"}}>{pinShown?managerPin:"•".repeat(managerPin.length)}</div>
+            </div>
+            <button onClick={()=>setPinShown(v=>!v)} className="press" style={{...ACTION_BTN("var(--muted)","transparent"),minHeight:36,padding:"0 10px",fontSize:13}}>{pinShown?"Hide":"Show"}</button>
+            {!pinForm&&<button onClick={()=>{setPinForm(true);setNewPin("");setNewPin2("");setPinMsg("");}} className="press" style={{...ACTION_BTN(DT.accent,`${DT.accent}18`),minHeight:36,padding:"0 12px",fontSize:13}}><Icon name="edit" size={15}/>Change</button>}
+          </div>
+
+          {/* Change PIN */}
+          {pinForm&&(
+            <div style={{border:"1px solid var(--border)",borderRadius:12,padding:12,marginBottom:10,animation:"slideDown .2s var(--ease)"}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:8}}>
+                <label style={{minWidth:0}}><div style={NOTIF_LABEL}>New PIN</div>
+                  <input type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={newPin} onChange={e=>{setNewPin(e.target.value.replace(/\D/g,""));setPinMsg("");}}
+                    placeholder="4–6 digits" className="field" style={{textAlign:"center",letterSpacing:"0.2em",fontSize:17}}/></label>
+                <label style={{minWidth:0}}><div style={NOTIF_LABEL}>Type it again</div>
+                  <input type="password" inputMode="numeric" autoComplete="off" maxLength={6} value={newPin2} onChange={e=>{setNewPin2(e.target.value.replace(/\D/g,""));setPinMsg("");}}
+                    onKeyDown={e=>e.key==="Enter"&&savePin()} className="field" style={{textAlign:"center",letterSpacing:"0.2em",fontSize:17}}/></label>
               </div>
-              <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>setConfirmDisable(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:10,color:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                <button onClick={async()=>{setConfirmDisable(false);await toggleManagerDisabled();}} style={{flex:2,padding:"8px",background:"#e5484d18",border:"1px solid #e5484d44",borderRadius:10,color:DT.red,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⊘ CONFIRM_DISABLE →</button>
+              {pinMsg&&<div role="alert" style={{fontSize:13,color:pinMsg.startsWith("Saved")?"var(--success)":"var(--danger)",marginBottom:8}}>{pinMsg}</div>}
+              <div style={{fontSize:12,color:"var(--muted)",marginBottom:10,lineHeight:1.5}}>Managers who are signed in now stay signed in. Everyone uses the new PIN from their next sign-in.</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
+                <button onClick={()=>{setPinForm(false);setPinMsg("");}} className="press" style={ACTION_BTN("var(--muted)")}>Cancel</button>
+                <button onClick={savePin} disabled={pinBusy} className="press" style={{...ACTION_BTN("#fff",DT.accent),fontWeight:700,opacity:pinBusy?.6:1}}><Icon name="check" size={16}/>{pinBusy?"Saving…":"Save new PIN"}</button>
               </div>
             </div>
           )}
 
-          <button onClick={()=>managerDisabled?toggleManagerDisabled():setConfirmDisable(true)}
-            style={{width:"100%",padding:"10px",background:managerDisabled?`${DT.green}15`:"#e5484d15",border:`1px solid ${managerDisabled?DT.green+"44":"#e5484d44"}`,borderRadius:10,color:managerDisabled?DT.green:DT.red,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:10,transition:"all 0.3s"}}>
-            {managerDisabled?"Turn manager access back on":"Turn off manager access"}
-          </button>
-        </div>
+          {/* Turn manager access off / on */}
+          {confirmDisable?(
+            <div style={{background:"var(--danger-soft)",borderRadius:12,padding:14,animation:"slideDown .2s var(--ease)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,fontSize:15,fontWeight:700,color:"var(--danger)",marginBottom:4}}><Icon name="circle-alert" size={18}/>Turn off manager access?</div>
+              <div style={{fontSize:13,color:"var(--muted)",marginBottom:12,lineHeight:1.5}}>Managers won't be able to sign in until you turn it back on here. Everyone sees a notice at the top of the app while it's off.</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
+                <button onClick={()=>setConfirmDisable(false)} className="press" style={ACTION_BTN("var(--muted)","var(--surface)")}>Cancel</button>
+                <button onClick={async()=>{setConfirmDisable(false);await toggleManagerDisabled();}} className="press" style={{...ACTION_BTN("#fff","#cf3d3d"),fontWeight:700}}>Turn off</button>
+              </div>
+            </div>
+          ):(
+            <button onClick={()=>managerDisabled?toggleManagerDisabled():setConfirmDisable(true)} className="press"
+              style={{...(managerDisabled?ACTION_BTN("var(--success)","var(--success-soft)"):ACTION_BTN("var(--danger)","var(--danger-soft)")),width:"100%"}}>
+              <Icon name={managerDisabled?"unlock":"lock"} size={16}/>{managerDisabled?"Turn manager access back on":"Turn off manager access"}
+            </button>
+          )}
+        </section>
         <div style={DEV_CARD}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
             <div style={{...DEV_TITLE,marginBottom:0}}>Sales tax rate</div>
@@ -2279,17 +2325,17 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
         </div>}
         {tab==="bugs"&&<div key="bugs" style={{animation:"fadeUp .3s var(--ease-out)"}}>
         <div style={DEV_H}>Known bugs <span style={{color:"var(--faint)",fontWeight:500}}>· {knownBugs.length}</span></div>
-        <button onClick={()=>setShowAddBug(v=>!v)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:12}}>{showAddBug?"Cancel":"Add a known bug"}</button>
+        {!showAddBug&&<button onClick={()=>setShowAddBug(true)} className="press" style={{...ACTION_BTN(DT.accent,`${DT.accent}18`),width:"100%",marginBottom:12}}><Icon name="plus" size={16}/>Add a known bug</button>}
         {showAddBug&&(
-          <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:14}}>
-            <input style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}} placeholder="Bug title" value={bugForm.title} onChange={e=>setBugForm(f=>({...f,title:e.target.value}))}/>
-            <textarea style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:70,resize:"none",lineHeight:1.5,marginBottom:10}} placeholder="Description" value={bugForm.description} onChange={e=>setBugForm(f=>({...f,description:e.target.value}))}/>
+          <div style={{...DEV_CARD,animation:"slideDown .2s var(--ease)"}}>
+            <input className="field" style={{marginBottom:8}} placeholder="Bug title" value={bugForm.title} onChange={e=>setBugForm(f=>({...f,title:e.target.value}))}/>
+            <textarea className="field" style={{minHeight:80,resize:"none",lineHeight:1.5,marginBottom:10}} placeholder="Description" value={bugForm.description} onChange={e=>setBugForm(f=>({...f,description:e.target.value}))}/>
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
               {SEVERITY_LEVELS.map(s=>{const c={Low:"#16a34a",Medium:"#f0c040",High:"#e67e22",Critical:"#e5484d"}[s];return <button key={s} onClick={()=>setBugForm(f=>({...f,severity:s}))} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${bugForm.severity===s?c:DT.cardBorder}`,background:bugForm.severity===s?`${c}20`:"transparent",color:bugForm.severity===s?c:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{s.toUpperCase()}</button>;})}
             </div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setShowAddBug(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:10,color:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-              <button onClick={async()=>{if(!bugForm.title||!bugForm.description)return;const{data}=await sb.from("known_bugs").insert({title:bugForm.title,description:bugForm.description,severity:bugForm.severity,status:bugForm.status,created_at:new Date().toISOString()}).select().single();if(data)setKnownBugs(prev=>[data,...prev]);setBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBug(false);}} style={{flex:2,padding:"8px",background:DT.accent,border:"none",borderRadius:10,color:DT.accentText,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>PUSH_BUG →</button>
+              <button onClick={async()=>{if(!bugForm.title||!bugForm.description)return;const{data}=await sb.from("known_bugs").insert({title:bugForm.title,description:bugForm.description,severity:bugForm.severity,status:bugForm.status,created_at:new Date().toISOString()}).select().single();if(data)setKnownBugs(prev=>[data,...prev]);setBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBug(false);}} style={{flex:2,padding:"8px",background:DT.accent,border:"none",borderRadius:10,color:DT.accentText,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Add bug</button>
             </div>
           </div>
         )}
@@ -3750,6 +3796,12 @@ export default function App(){
   const [showMore,setShowMore]=useState(false);
   const [layout,setLayout]=useState(DEFAULT_LAYOUT);
   // a banner someone closed stays closed on their device (a new or changed banner shows again)
+  const [managerPin,setManagerPin]=useState(DEFAULT_MANAGER_PIN);
+  async function saveManagerPin(p){
+    const {error}=await sb.from("app_settings").upsert({key:"manager_pin",value:p},{onConflict:"key"});
+    if(error)throw error;
+    setManagerPin(p);
+  }
   const [hiddenNotif,setHiddenNotif]=useState(()=>{try{return localStorage.getItem("notif-hidden")||"";}catch{return "";}});
   // pick up banners posted from another device without a reload
   useEffect(()=>{
@@ -3781,6 +3833,8 @@ export default function App(){
             taxable:row.taxable||false,
           })));
         }
+        // manager PIN set from the Developer Console (falls back to the original one)
+        try{const {data:mp}=await sb.from("app_settings").select("value").eq("key","manager_pin").maybeSingle();if(mp&&/^\d{4,6}$/.test(mp.value||""))setManagerPin(mp.value);}catch{}
         const rate=await fetchTaxRate();
         setTaxRate(rate);
         // Load managerDisabled
@@ -3820,7 +3874,6 @@ export default function App(){
   // Lifted welcome refs so they survive navigation back to home
   const hasShownWelcomeRef=useRef({dev:false,manager:false});
 
-  const MANAGER_PIN="3018",DEV_PIN="130654";
 
   function addAuditEntry(entry){
     setAuditLog(prev=>{
@@ -3843,8 +3896,8 @@ export default function App(){
   }
 
   function submitPin(){
-    if(managerDisabled&&pinInput===MANAGER_PIN){setPinError(true);setPinInput("");return;}
-    if(pinInput===MANAGER_PIN||pinInput===DEV_PIN){
+    if(managerDisabled&&pinInput===managerPin){setPinError(true);setPinInput("");return;}
+    if(pinInput===managerPin||pinInput===DEV_PIN){
       setIsManager(true);
       if(pinInput===DEV_PIN)setIsDev(true);
       try{sessionStorage.setItem("isManager","true");if(pinInput===DEV_PIN)sessionStorage.setItem("isDev","true");}catch{}
@@ -4004,7 +4057,7 @@ export default function App(){
       {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager} isDev={isDev}/>}
       {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"var(--bg)",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} presetList={presetList} onPresetListChange={l=>{setPresetList(l);saveShiftPresetList(l);}} setItems={setItems} items={items} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} managerPin={managerPin} onManagerPinChange={saveManagerPin} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} presetList={presetList} onPresetListChange={l=>{setPresetList(l);saveShiftPresetList(l);}} setItems={setItems} items={items} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
       </PageErrorBoundary>
       <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
       <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
