@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext, Component } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 import { layoutFeet, findDoor, routeTo, arrowsAlong } from "./route.js";
 
@@ -272,6 +273,7 @@ const ICONS={
   star:'<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
   user:'<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
+  expand:'<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/>',
   logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
 };
 function Icon({name,size=20,stroke=2,style}){
@@ -407,7 +409,7 @@ const DEFAULT_LAYOUT={size:STORE_SIZE,zones:FLOOR_ZONES,walls:FLOOR_WALLS};
 const LayoutCtx=createContext(DEFAULT_LAYOUT);
 const loadStore3d=()=>import("./store3d.js"); // three.js only downloads when someone opens 3D
 
-function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly,theme}){
+function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly,theme,fill=false}){
   const ref=useRef(null),viewer=useRef(null),cb=useRef(onSelectZone),pinRef=useRef(pinZone);
   cb.current=onSelectZone;pinRef.current=pinZone;
   const [failed,setFailed]=useState(false);
@@ -422,7 +424,7 @@ function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly,theme}){
   },[layout,readonly,accent,theme]);
   useEffect(()=>{viewer.current&&viewer.current.setPin(pinZone);},[pinZone]);
   return(
-    <div ref={ref} style={{width:"100%",aspectRatio:`${layout.size.w} / ${layout.size.d}`,minHeight:240,position:"relative",background:MAP_LOOK[theme].bg}}>
+    <div ref={ref} style={{width:"100%",...(fill?{height:"100%"}:{aspectRatio:`${layout.size.w} / ${layout.size.d}`,minHeight:240}),position:"relative",background:MAP_LOOK[theme].bg}}>
       {failed&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"var(--muted)",textAlign:"center",padding:16}}>The 3D map couldn't load. Switch back to 2D.</div>}
       <div aria-hidden style={{position:"absolute",inset:0,pointerEvents:"none",background:"radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(20,18,10,.28) 100%)"}}/>
     </div>
@@ -462,7 +464,7 @@ function fmtDate(v){
   return isNaN(d)?String(v):d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 }
 
-function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
+function FloorPlan({pinZone,onSelectZone,accent,readonly=false,fill=false}){
   const layout=useContext(LayoutCtx);
   const theme=useDocTheme(), L=MAP_LOOK[theme];
   const [hovered,setHovered]=useState(null);
@@ -480,7 +482,7 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
     return {door:d,route:path?{path,arrows:arrowsAlong(path)}:null};
   },[layout,pinKey]);
   return(
-    <div data-no-swipe style={{position:"relative",width:"100%",borderRadius:14,overflow:"hidden",background:L.bg,border:"1px solid var(--border)"}}>
+    <div data-no-swipe style={{position:"relative",width:"100%",overflow:"hidden",background:L.bg,...(fill?{height:"100%"}:{borderRadius:14,border:"1px solid var(--border)"})}}>
       <div onClick={e=>e.stopPropagation()} role="tablist" aria-label="Map view" style={{position:"absolute",top:8,right:8,zIndex:3,display:"flex",padding:3,gap:2,borderRadius:10,
         background:"var(--glass)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",border:"1px solid var(--border)",boxShadow:"var(--shadow)"}}>
         {["2d","3d"].map(m=>(
@@ -491,8 +493,8 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
           </button>
         ))}
       </div>
-      {mode==="3d"?<FloorPlan3D layout={layout} pinZone={pinKey} onSelectZone={onSelectZone} accent={acc} readonly={readonly} theme={theme}/>:
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block"}}>
+      {mode==="3d"?<FloorPlan3D layout={layout} pinZone={pinKey} onSelectZone={onSelectZone} accent={acc} readonly={readonly} theme={theme} fill={fill}/>:
+      <svg viewBox={`${fill?-20:0} ${fill?-20:0} ${W+(fill?40:0)} ${H+(fill?40:0)}`} width="100%" height={fill?"100%":undefined} preserveAspectRatio="xMidYMid meet" style={{display:"block"}}>
         <defs>
           <style>{`@keyframes pinPulse{0%{opacity:.55;transform:scale(1)}100%{opacity:0;transform:scale(1.25)}}.pin-ring{transform-box:fill-box;transform-origin:center;animation:pinPulse 1.8s var(--ease-out) infinite}
             @keyframes routeDash{to{stroke-dashoffset:-28}}.route-line{animation:routeDash 1.1s linear infinite}
@@ -583,6 +585,38 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
   );
 }
 
+// ── Full-screen map ───────────────────────────────────────────────────────────
+function MapTakeover({item,zoneName,accent,onClose}){
+  useEffect(()=>{
+    // phone back button / Escape close it; the page underneath stops scrolling while it's open
+    history.pushState({mapTakeover:1},"");
+    const pop=()=>onClose(), key=e=>e.key==="Escape"&&history.back();
+    window.addEventListener("popstate",pop); window.addEventListener("keydown",key);
+    const prev=document.body.style.overflow; document.body.style.overflow="hidden";
+    return()=>{window.removeEventListener("popstate",pop);window.removeEventListener("keydown",key);document.body.style.overflow=prev;};
+  },[]);
+  return(
+    <div data-no-swipe role="dialog" aria-label={`Map: ${item.name}`} style={{position:"fixed",inset:0,zIndex:2000,background:"var(--bg)",display:"flex",flexDirection:"column",animation:"fadeIn .25s var(--ease)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,padding:"calc(10px + env(safe-area-inset-top)) 14px 10px",background:"var(--glass)",backdropFilter:"blur(14px)",WebkitBackdropFilter:"blur(14px)",borderBottom:"1px solid var(--border)",zIndex:2}}>
+        <IconButton icon="back" label="Close map" onClick={()=>history.back()}/>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:17,fontWeight:700,color:"var(--text)",letterSpacing:"-0.01em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
+          <div style={{fontSize:13,color:"var(--muted)",display:"flex",alignItems:"center",gap:4}}><span style={{color:accent,display:"inline-flex"}}><Icon name="pin" size={13}/></span>{zoneName}</div>
+        </div>
+        <div style={{fontSize:20,fontWeight:700,color:accent,fontVariantNumeric:"tabular-nums"}}>${priceOn(item).toFixed(2)}</div>
+      </div>
+      <div style={{flex:1,minHeight:0,position:"relative",animation:"modalIn .35s var(--ease-out)"}}>
+        <FloorPlan pinZone={item.mapZone} accent={accent} readonly={true} fill/>
+        <div style={{position:"absolute",left:"50%",transform:"translateX(-50%)",bottom:"calc(14px + env(safe-area-inset-bottom))",display:"flex",alignItems:"center",gap:8,
+          padding:"9px 14px",borderRadius:999,background:"var(--glass)",backdropFilter:"blur(12px)",WebkitBackdropFilter:"blur(12px)",border:"1px solid var(--border)",boxShadow:"var(--shadow-lg)",
+          fontSize:13,color:"var(--text)",whiteSpace:"nowrap",pointerEvents:"none"}}>
+          <span style={{width:8,height:8,borderRadius:"50%",background:accent,boxShadow:`0 0 0 4px ${accent}33`}}/>Follow the arrows from the entrance
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── SwipeRow ──────────────────────────────────────────────────────────────────
 function SwipeRow({onSwipeLeft,children,accentColor}){
   const startX=useRef(null);
@@ -620,59 +654,8 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
   const zoneName=findZone(layout.zones,item.mapZone)?.label||item.location||item.mapZone;
   return(
     <>
-    {/* Fullscreen map takeover */}
-    {mapExpanded&&(
-      <div data-no-swipe style={{
-        position:"fixed",inset:0,zIndex:1000,
-        background:"#050810",
-        display:"flex",flexDirection:"column",
-        animation:"fadeIn 0.25s ease",
-      }}>
-        {/* Top bar */}
-        <div style={{
-          display:"flex",alignItems:"center",justifyContent:"space-between",
-          padding:"16px 20px",
-          background:"linear-gradient(180deg,#0a0e1a,transparent)",
-          position:"absolute",top:0,left:0,right:0,zIndex:2,
-        }}>
-          <div>
-            <div style={{fontSize:17,fontWeight:700,color:"var(--text)"}}>{item.name}</div>
-            <div style={{fontSize:12,color:T.accent,fontWeight:600,marginTop:2}}>📍 {zoneName}</div>
-          </div>
-          <button
-            onClick={()=>setMapExpanded(false)}
-            style={{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(8px)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"var(--text)",fontSize:18,fontFamily:"inherit"}}>
-            ✕
-          </button>
-        </div>
-
-        {/* Map — centered, fills available space */}
-        <div style={{
-          flex:1,display:"flex",alignItems:"center",justifyContent:"center",
-          padding:"80px 20px 100px",
-        }}>
-          <div style={{width:"100%",maxWidth:480,animation:"modalIn 0.3s var(--ease-out)"}}>
-            <FloorPlan pinZone={item.mapZone} accent={T.accent} readonly={true}/>
-          </div>
-        </div>
-
-        {/* Bottom zone label */}
-        <div style={{
-          position:"absolute",bottom:0,left:0,right:0,
-          padding:"16px 20px 32px",
-          background:"linear-gradient(0deg,#050810 60%,transparent)",
-        }}>
-          <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"rgba(255,255,255,0.04)",borderRadius:14,border:`1px solid ${T.accent}28`,backdropFilter:"blur(10px)"}}>
-            <div style={{width:12,height:12,borderRadius:"50%",background:T.accent,flexShrink:0,boxShadow:`0 0 10px ${T.accent}`,animation:"pulse 2s infinite"}}/>
-            <div style={{flex:1}}>
-              <div style={{fontSize:14,fontWeight:700,color:T.accent}}>{zoneName}</div>
-              {item.location&&<div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{item.location}</div>}
-            </div>
-            <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",letterSpacing:"0.05em"}}>TAP ✕ TO CLOSE</div>
-          </div>
-        </div>
-      </div>
-    )}
+    {/* Full-screen map: rendered at the top of the page (the card's swipe layer would otherwise trap it) */}
+    {mapExpanded&&createPortal(<MapTakeover item={item} zoneName={zoneName} accent={T.accent} onClose={()=>setMapExpanded(false)}/>,document.body)}
 
     <div
       onClick={()=>setExpanded(e=>!e)}
@@ -752,7 +735,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
                       {/* Only mount the map while it's open — every card used to load its own (40 3D engines per page) */}
                       {expanded&&!mapMini&&!mapExpanded&&<FloorPlan pinZone={item.mapZone} accent={T.accent} readonly={true}/>}
                       <div style={{display:"flex",justifyContent:"flex-end",marginTop:6}}>
-                        <button onClick={e=>{e.stopPropagation();setMapExpanded(true);}} style={{fontSize:11,color:T.accent,background:"transparent",border:`1px solid ${T.accent}44`,borderRadius:8,padding:"7px 12px",minHeight:34,cursor:"pointer",fontFamily:"inherit",fontWeight:600,letterSpacing:"0.04em"}}>⤢ Full Screen</button>
+                        <button onClick={e=>{e.stopPropagation();setMapExpanded(true);}} className="press" style={{...ACTION_BTN(),minHeight:38,padding:"8px 12px",fontSize:13}}><Icon name="expand" size={15}/>Full screen</button>
                       </div>
                     </div>
                   </div>
