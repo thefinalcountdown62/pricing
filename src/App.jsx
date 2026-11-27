@@ -11,44 +11,44 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 // ── Categories ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
   {
-    key:"beverages_alcoholic", name:"Alcohol", icon:"🍺",
+    key:"beverages_alcoholic", name:"Alcohol", icon:"beer",
     theme:{bg:"#0f1117",header:"linear-gradient(160deg,#1a1f2e,#161b27)",accent:"#f0c040",accentText:"#0f1117",card:"#1a1f2e",border:"#2a3050",sub:"#6b7280",badge:"#252c42",badgeBorder:"#3a4260",badgeText:"#9ba8c0",oosOverlay:"rgba(15,17,23,0.6)"},
-    subcategories:[{key:"beer",name:"Beer",icon:"🍺"},{key:"wine",name:"Wine",icon:"🍷"},{key:"spirits",name:"Spirits",icon:"🥃"},{key:"hard_seltzer",name:"Hard Seltzer",icon:"🫧"},{key:"other_alcohol",name:"Other",icon:"🍶"}],
+    subcategories:[{key:"beer",name:"Beer",icon:"beer"},{key:"wine",name:"Wine",icon:"wine"},{key:"spirits",name:"Spirits",icon:"martini"},{key:"hard_seltzer",name:"Hard Seltzer",icon:"glass-water"},{key:"other_alcohol",name:"Other",icon:"circle-ellipsis"}],
   },
   {
-    key:"beverages_na", name:"Beverages", icon:"🥤",
+    key:"beverages_na", name:"Beverages", icon:"cup-soda",
     theme:{bg:"#0a1a0f",header:"linear-gradient(160deg,#0f2a18,#0a1a0f)",accent:"#2ecc71",accentText:"#0a1a0f",card:"#0f2018",border:"#1a4028",sub:"#4a8060",badge:"#0f2820",badgeBorder:"#1a4030",badgeText:"#5a9070",oosOverlay:"rgba(10,26,15,0.6)"},
-    subcategories:[{key:"soda",name:"Soda",icon:"🥤"},{key:"water",name:"Water",icon:"💧"},{key:"juice",name:"Juice",icon:"🧃"},{key:"energy_drinks",name:"Energy Drinks",icon:"⚡"},{key:"sports_drinks",name:"Sports Drinks",icon:"🏃"},{key:"coffee_tea",name:"Coffee & Tea",icon:"☕"},{key:"other_drinks",name:"Other",icon:"🫙"}],
+    subcategories:[{key:"soda",name:"Soda",icon:"cup-soda"},{key:"water",name:"Water",icon:"droplet"},{key:"juice",name:"Juice",icon:"citrus"},{key:"energy_drinks",name:"Energy Drinks",icon:"zap"},{key:"sports_drinks",name:"Sports Drinks",icon:"dumbbell"},{key:"coffee_tea",name:"Coffee & Tea",icon:"coffee"},{key:"other_drinks",name:"Other",icon:"circle-ellipsis"}],
   },
   {
-    key:"snacks_candy", name:"Snacks & Candy", icon:"🍫",
+    key:"snacks_candy", name:"Snacks & Candy", icon:"candy",
     theme:{bg:"#1a0a00",header:"linear-gradient(160deg,#2a1400,#1a0a00)",accent:"#ff6b35",accentText:"#fff",card:"#200f00",border:"#3a2010",sub:"#806040",badge:"#281500",badgeBorder:"#3a2010",badgeText:"#906040",oosOverlay:"rgba(26,10,0,0.6)"},
-    subcategories:[{key:"chips",name:"Chips & Salty",icon:"🥨"},{key:"candy",name:"Candy",icon:"🍬"},{key:"gum_mints",name:"Gum & Mints",icon:"🌿"},{key:"nuts",name:"Nuts",icon:"🥜"},{key:"other_snacks",name:"Other",icon:"🍪"}],
+    subcategories:[{key:"chips",name:"Chips & Salty",icon:"popcorn"},{key:"candy",name:"Candy",icon:"candy"},{key:"gum_mints",name:"Gum & Mints",icon:"leaf"},{key:"nuts",name:"Nuts",icon:"nut"},{key:"other_snacks",name:"Other",icon:"cookie"}],
   },
   {
-    key:"grocery", name:"Grocery", icon:"🛒",
+    key:"grocery", name:"Grocery", icon:"shopping-cart",
     theme:{bg:"#0a0a1a",header:"linear-gradient(160deg,#141428,#0a0a1a)",accent:"#7c83fd",accentText:"#fff",card:"#0f0f22",border:"#1e1e40",sub:"#505080",badge:"#101028",badgeBorder:"#202048",badgeText:"#6060a0",oosOverlay:"rgba(10,10,26,0.6)"},
-    subcategories:[{key:"dairy",name:"Dairy",icon:"🥛"},{key:"bread",name:"Bread & Crackers",icon:"🍞"},{key:"pantry",name:"Pantry",icon:"🥫"},{key:"cooking",name:"Cooking",icon:"🧂"},{key:"frozen",name:"Frozen",icon:"🧊"},{key:"other_grocery",name:"Other",icon:"🛒"}],
+    subcategories:[{key:"dairy",name:"Dairy",icon:"milk"},{key:"bread",name:"Bread & Crackers",icon:"croissant"},{key:"pantry",name:"Pantry",icon:"soup"},{key:"cooking",name:"Cooking",icon:"chef-hat"},{key:"frozen",name:"Frozen",icon:"snowflake"},{key:"other_grocery",name:"Other",icon:"shopping-basket"}],
   },
   {
-    key:"tobacco_nicotine", name:"Tobacco", icon:"🚬",
+    key:"tobacco_nicotine", name:"Tobacco", icon:"cigarette",
     theme:{bg:"#111008",header:"linear-gradient(160deg,#1e1c0e,#111008)",accent:"#c8a84b",accentText:"#111008",card:"#181608",border:"#302c14",sub:"#706840",badge:"#201e08",badgeBorder:"#302c14",badgeText:"#907840",oosOverlay:"rgba(17,16,8,0.6)"},
-    subcategories:[{key:"cigarettes",name:"Cigarettes",icon:"🚬"},{key:"cigars",name:"Cigars",icon:"💨"},{key:"nicotine_pouches",name:"Nicotine Pouches",icon:"🟢"},{key:"dip_snuff",name:"Dip & Snuff",icon:"🥫"},{key:"other_tobacco",name:"Other",icon:"📦"}],
+    subcategories:[{key:"cigarettes",name:"Cigarettes",icon:"cigarette"},{key:"cigars",name:"Cigars",icon:"wind"},{key:"nicotine_pouches",name:"Nicotine Pouches",icon:"circle-dot"},{key:"dip_snuff",name:"Dip & Snuff",icon:"cylinder"},{key:"other_tobacco",name:"Other",icon:"circle-ellipsis"}],
   },
   {
-    key:"household", name:"Household", icon:"🏠",
+    key:"household", name:"Household", icon:"house",
     theme:{bg:"#0a1218",header:"linear-gradient(160deg,#0f1e28,#0a1218)",accent:"#00b4d8",accentText:"#0a1218",card:"#0f1a24",border:"#1a2e3c",sub:"#405870",badge:"#0f2030",badgeBorder:"#1a3040",badgeText:"#506880",oosOverlay:"rgba(10,18,24,0.6)"},
-    subcategories:[{key:"cleaning",name:"Cleaning",icon:"🧹"},{key:"paper_goods",name:"Paper Goods",icon:"🧻"},{key:"kitchen_basics",name:"Kitchen",icon:"🍽️"},{key:"personal_care",name:"Personal Care",icon:"🧴"},{key:"other_household",name:"Other",icon:"🏠"}],
+    subcategories:[{key:"cleaning",name:"Cleaning",icon:"spray-can"},{key:"paper_goods",name:"Paper Goods",icon:"scroll"},{key:"kitchen_basics",name:"Kitchen",icon:"utensils"},{key:"personal_care",name:"Personal Care",icon:"hand-heart"},{key:"other_household",name:"Other",icon:"circle-ellipsis"}],
   },
   {
-    key:"misc", name:"Misc", icon:"📦",
+    key:"misc", name:"Misc", icon:"package",
     theme:{bg:"#121212",header:"linear-gradient(160deg,#1c1c1c,#121212)",accent:"#a0a0a0",accentText:"#121212",card:"#1a1a1a",border:"#2e2e2e",sub:"#585858",badge:"#1f1f1f",badgeBorder:"#303030",badgeText:"#686868",oosOverlay:"rgba(18,18,18,0.6)"},
-    subcategories:[{key:"misc_other",name:"Other",icon:"📦"}],
+    subcategories:[{key:"misc_other",name:"Other",icon:"package"}],
   },
   {
-    key:"print_cards", name:"Print & Cards", icon:"📰",
+    key:"print_cards", name:"Print & Cards", icon:"newspaper",
     theme:{bg:"#18080a",header:"linear-gradient(160deg,#280e12,#18080a)",accent:"#e84393",accentText:"#fff",card:"#200c10",border:"#381420",sub:"#704050",badge:"#200c10",badgeBorder:"#381420",badgeText:"#904060",oosOverlay:"rgba(24,8,10,0.6)"},
-    subcategories:[{key:"newspapers",name:"Newspapers",icon:"📰"},{key:"magazines",name:"Magazines",icon:"📖"},{key:"greeting_cards",name:"Greeting Cards",icon:"💌"},{key:"other_print",name:"Other",icon:"📋"}],
+    subcategories:[{key:"newspapers",name:"Newspapers",icon:"newspaper"},{key:"magazines",name:"Magazines",icon:"book-open"},{key:"greeting_cards",name:"Greeting Cards",icon:"mail"},{key:"other_print",name:"Other",icon:"circle-ellipsis"}],
   },
 ];
 
@@ -84,7 +84,7 @@ const TOKEN_THEME={bg:"var(--bg)",header:"var(--bg)",card:"var(--surface)",borde
   badge:"var(--surface-2)",badgeBorder:"var(--border)",badgeText:"var(--muted)",oosOverlay:"transparent"};
 CATEGORIES.forEach(c=>{const [d]=CAT_ACCENTS[c.key]||["#f2c14e"];Object.assign(c.theme,TOKEN_THEME,{accent:d,accentText:"#15161a"});});
 CAT_ACCENTS.recommendations=["#f2c14e","#a86f00"];
-const RECS_CATEGORY={key:"recommendations",name:"Gillie's Recommendations",icon:"⭐",theme:{...TOKEN_THEME,accent:"#f2c14e",accentText:"#15161a"},subcategories:[]};
+const RECS_CATEGORY={key:"recommendations",name:"Gillie's Recommendations",icon:"star",theme:{...TOKEN_THEME,accent:"#f2c14e",accentText:"#15161a"},subcategories:[]};
 function catAccent(key,isDark){const a=CAT_ACCENTS[key]||["#f2c14e","#a86f00"];return isDark?a[0]:a[1];}
 function buildThemeVariant(theme,mode,key){
   const a=CAT_ACCENTS[key];
@@ -92,7 +92,12 @@ function buildThemeVariant(theme,mode,key){
 }
 
 
-const DT={appBg:"var(--bg)",headerBg:"var(--bg)",cardBg:"var(--surface)",cardBorder:"var(--border)",accent:"#0ea5c6",accentDim:"#0ea5c622",accentText:"#ffffff",text:"var(--text)",subText:"var(--muted)",inputBg:"var(--surface-2)",inputBorder:"var(--border)",green:"#16a34a",red:"#e5484d"};
+const DEV_TABS=[{id:"settings",label:"Settings",icon:"settings"},{id:"items",label:"Items",icon:"database"},{id:"map",label:"Map",icon:"map"},{id:"bugs",label:"Bugs",icon:"bug"}];
+const DEV_CARD={background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:16,marginBottom:14,boxShadow:"var(--shadow)"};
+const DEV_TITLE={fontSize:15,fontWeight:700,color:"var(--text)",letterSpacing:"-0.01em",marginBottom:3};
+const DEV_DESC={fontSize:12.5,color:"var(--muted)",marginBottom:12,lineHeight:1.5};
+const DEV_H={fontSize:14,fontWeight:700,color:"var(--text)",margin:"4px 2px 10px"};
+const DT={appBg:"var(--bg)",headerBg:"var(--bg)",cardBg:"var(--surface)",cardBorder:"var(--border)",accent:"#0b87a6",accentDim:"#0b87a622",accentText:"#ffffff",text:"var(--text)",subText:"var(--muted)",inputBg:"var(--surface-2)",inputBorder:"var(--border)",green:"#16a34a",red:"#e5484d"};
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 function buildCSV(items){
@@ -274,6 +279,51 @@ const ICONS={
   download:'<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>',
   user:'<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
   expand:'<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/>',
+  // category + console icons (Lucide)
+  "beer":'<path d="M17 11h1a3 3 0 0 1 0 6h-1" /><path d="M9 12v6" /><path d="M13 12v6" /><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 2 11 2s2 1.5 3 1.5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z" /><path d="M5 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" />',
+  "cup-soda":'<path d="m6 8 1.75 12.28a2 2 0 0 0 2 1.72h4.54a2 2 0 0 0 2-1.72L18 8" /><path d="M5 8h14" /><path d="M7 15a6.47 6.47 0 0 1 5 0 6.47 6.47 0 0 0 5 0" /><path d="m12 8 1-6h2" />',
+  "candy":'<path d="m9.5 7.5-2 2a4.95 4.95 0 1 0 7 7l2-2a4.95 4.95 0 1 0-7-7Z" /><path d="M14 6.5v10" /><path d="M10 7.5v10" /><path d="m16 7 1-5 1.37.68A3 3 0 0 0 19.7 3H21v1.3c0 .46.1.92.32 1.33L22 7l-5 1" /><path d="m8 17-1 5-1.37-.68A3 3 0 0 0 4.3 21H3v-1.3a3 3 0 0 0-.32-1.33L2 17l5-1" />',
+  "shopping-cart":'<circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" /><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />',
+  "cigarette":'<path d="M17 12H3a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h14" /><path d="M18 8c0-2.5-2-2.5-2-5" /><path d="M21 16a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" /><path d="M22 8c0-2.5-2-2.5-2-5" /><path d="M7 12v4" />',
+  "house":'<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8" /><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />',
+  "package":'<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" /><path d="M12 22V12" /><path d="m3.3 7 7.703 4.734a2 2 0 0 0 1.994 0L20.7 7" /><path d="m7.5 4.27 9 5.15" />',
+  "newspaper":'<path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2" /><path d="M18 14h-8" /><path d="M15 18h-5" /><path d="M10 6h8v4h-8V6Z" />',
+  "wine":'<path d="M8 22h8" /><path d="M7 10h10" /><path d="M12 15v7" /><path d="M12 15a5 5 0 0 0 5-5c0-2-.5-4-2-8H9c-1.5 4-2 6-2 8a5 5 0 0 0 5 5Z" />',
+  "martini":'<path d="M8 22h8" /><path d="M12 11v11" /><path d="m19 3-7 8-7-8Z" />',
+  "glass-water":'<path d="M5.116 4.104A1 1 0 0 1 6.11 3h11.78a1 1 0 0 1 .994 1.105L17.19 20.21A2 2 0 0 1 15.2 22H8.8a2 2 0 0 1-2-1.79z" /><path d="M6 12a5 5 0 0 1 6 0 5 5 0 0 0 6 0" />',
+  "circle-ellipsis":'<circle cx="12" cy="12" r="10" /><path d="M17 12h.01" /><path d="M12 12h.01" /><path d="M7 12h.01" />',
+  "droplet":'<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z" />',
+  "citrus":'<path d="M21.66 17.67a1.08 1.08 0 0 1-.04 1.6A12 12 0 0 1 4.73 2.38a1.1 1.1 0 0 1 1.61-.04z" /><path d="M19.65 15.66A8 8 0 0 1 8.35 4.34" /><path d="m14 10-5.5 5.5" /><path d="M14 17.85V10H6.15" />',
+  "zap":'<path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z" />',
+  "dumbbell":'<path d="M14.4 14.4 9.6 9.6" /><path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z" /><path d="m21.5 21.5-1.4-1.4" /><path d="M3.9 3.9 2.5 2.5" /><path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z" />',
+  "coffee":'<path d="M10 2v2" /><path d="M14 2v2" /><path d="M16 8a1 1 0 0 1 1 1v8a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1h14a4 4 0 1 1 0 8h-1" /><path d="M6 2v2" />',
+  "popcorn":'<path d="M18 8a2 2 0 0 0 0-4 2 2 0 0 0-4 0 2 2 0 0 0-4 0 2 2 0 0 0-4 0 2 2 0 0 0 0 4" /><path d="M10 22 9 8" /><path d="m14 22 1-14" /><path d="M20 8c.5 0 .9.4.8 1l-2.6 12c-.1.5-.7 1-1.2 1H7c-.6 0-1.1-.4-1.2-1L3.2 9c-.1-.6.3-1 .8-1Z" />',
+  "leaf":'<path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" /><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12" />',
+  "nut":'<path d="M12 4V2" /><path d="M5 10v4a7.004 7.004 0 0 0 5.277 6.787c.412.104.802.292 1.102.592L12 22l.621-.621c.3-.3.69-.488 1.102-.592A7.003 7.003 0 0 0 19 14v-4" /><path d="M12 4C8 4 4.5 6 4 8c-.243.97-.919 1.952-2 3 1.31-.082 1.972-.29 3-1 .54.92.982 1.356 2 2 1.452-.647 1.954-1.098 2.5-2 .595.995 1.151 1.427 2.5 2 1.31-.621 1.862-1.058 2.5-2 .629.977 1.162 1.423 2.5 2 1.209-.548 1.68-.967 2-2 1.032.916 1.683 1.157 3 1-1.297-1.036-1.758-2.03-2-3-.5-2-4-4-8-4Z" />',
+  "cookie":'<path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5" /><path d="M8.5 8.5v.01" /><path d="M16 15.5v.01" /><path d="M12 12v.01" /><path d="M11 17v.01" /><path d="M7 14v.01" />',
+  "milk":'<path d="M8 2h8" /><path d="M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2" /><path d="M7 15a6.472 6.472 0 0 1 5 0 6.47 6.47 0 0 0 5 0" />',
+  "croissant":'<path d="m4.6 13.11 5.79-3.21c1.89-1.05 4.79 1.78 3.71 3.71l-3.22 5.81C8.8 23.16.79 15.23 4.6 13.11Z" /><path d="m10.5 9.5-1-2.29C9.2 6.48 8.8 6 8 6H4.5C2.79 6 2 6.5 2 8.5a7.71 7.71 0 0 0 2 4.83" /><path d="M8 6c0-1.55.24-4-2-4-2 0-2.5 2.17-2.5 4" /><path d="m14.5 13.5 2.29 1c.73.3 1.21.7 1.21 1.5v3.5c0 1.71-.5 2.5-2.5 2.5a7.71 7.71 0 0 1-4.83-2" /><path d="M18 16c1.55 0 4-.24 4 2 0 2-2.17 2.5-4 2.5" />',
+  "soup":'<path d="M12 21a9 9 0 0 0 9-9H3a9 9 0 0 0 9 9Z" /><path d="M7 21h10" /><path d="M19.5 12 22 6" /><path d="M16.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.78.34 1.24.73 1.62" /><path d="M11.25 3c.27.1.8.53.74 1.36-.05.83-.93 1.2-.98 2.02-.06.78.33 1.24.72 1.62" /><path d="M6.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.78.34 1.24.74 1.62" />',
+  "chef-hat":'<path d="M17 21a1 1 0 0 0 1-1v-5.35c0-.457.316-.844.727-1.041a4 4 0 0 0-2.134-7.589 5 5 0 0 0-9.186 0 4 4 0 0 0-2.134 7.588c.411.198.727.585.727 1.041V20a1 1 0 0 0 1 1Z" /><path d="M6 17h12" />',
+  "snowflake":'<line x1="2" x2="22" y1="12" y2="12" /><line x1="12" x2="12" y1="2" y2="22" /><path d="m20 16-4-4 4-4" /><path d="m4 8 4 4-4 4" /><path d="m16 4-4 4-4-4" /><path d="m8 20 4-4 4 4" />',
+  "shopping-basket":'<path d="m15 11-1 9" /><path d="m19 11-4-7" /><path d="M2 11h20" /><path d="m3.5 11 1.6 7.4a2 2 0 0 0 2 1.6h9.8a2 2 0 0 0 2-1.6l1.7-7.4" /><path d="M4.5 15.5h15" /><path d="m5 11 4-7" /><path d="m9 11 1 9" />',
+  "wind":'<path d="M12.8 19.6A2 2 0 1 0 14 16H2" /><path d="M17.5 8a2.5 2.5 0 1 1 2 4H2" /><path d="M9.8 4.4A2 2 0 1 1 11 8H2" />',
+  "circle-dot":'<circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" />',
+  "cylinder":'<ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5v14a9 3 0 0 0 18 0V5" />',
+  "spray-can":'<path d="M3 3h.01" /><path d="M7 5h.01" /><path d="M11 7h.01" /><path d="M3 7h.01" /><path d="M7 9h.01" /><path d="M3 11h.01" /><rect width="4" height="4" x="15" y="5" /><path d="m19 9 2 2v10c0 .6-.4 1-1 1h-6c-.6 0-1-.4-1-1V11l2-2" /><path d="m13 14 8-2" /><path d="m13 19 8-2" />',
+  "scroll":'<path d="M19 17V5a2 2 0 0 0-2-2H4" /><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3" />',
+  "utensils":'<path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2" /><path d="M7 2v20" /><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7" />',
+  "hand-heart":'<path d="M11 14h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 16" /><path d="m7 20 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9" /><path d="m2 15 6 6" /><path d="M19.5 8.5c.7-.7 1.5-1.6 1.5-2.7A2.73 2.73 0 0 0 16 4a2.78 2.78 0 0 0-5 1.8c0 1.2.8 2 1.5 2.8L16 12Z" />',
+  "book-open":'<path d="M12 7v14" /><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z" />',
+  "mail":'<rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />',
+  "clipboard":'<rect width="8" height="4" x="8" y="2" rx="1" ry="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />',
+  "settings":'<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" />',
+  "database":'<ellipse cx="12" cy="5" rx="9" ry="3" /><path d="M3 5V19A9 3 0 0 0 21 19V5" /><path d="M3 12A9 3 0 0 0 21 12" />',
+  "map":'<path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z" /><path d="M15 5.764v15" /><path d="M9 3.236v15" />',
+  "history":'<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l4 2" />',
+  "sliders-horizontal":'<line x1="21" x2="14" y1="4" y2="4" /><line x1="10" x2="3" y1="4" y2="4" /><line x1="21" x2="12" y1="12" y2="12" /><line x1="8" x2="3" y1="12" y2="12" /><line x1="21" x2="16" y1="20" y2="20" /><line x1="12" x2="3" y1="20" y2="20" /><line x1="14" x2="14" y1="2" y2="6" /><line x1="8" x2="8" y1="10" y2="14" /><line x1="16" x2="16" y1="18" y2="22" />',
+  "refresh-cw":'<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" />',
+  "menu":'<line x1="4" x2="20" y1="12" y2="12" /><line x1="4" x2="20" y1="6" y2="6" /><line x1="4" x2="20" y1="18" y2="18" />',
   logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>',
 };
 function Icon({name,size=20,stroke=2,style}){
@@ -639,6 +689,49 @@ function SwipeRow({onSwipeLeft,children,accentColor}){
   );
 }
 
+// Category name in the header; tapping it opens a sheet to jump straight to another category
+function CategoryTitle({category,items,isDark,onPick,sub}){
+  const [open,setOpen]=useState(false);
+  const accentOf=c=>c.key==="recommendations"?(isDark?"#f2c14e":"#a86f00"):catAccent(c.key,isDark);
+  return(<>
+    <button onClick={()=>setOpen(true)} aria-label={`${category.name}: switch category`} aria-haspopup="dialog" className="press"
+      style={{flex:1,minWidth:0,textAlign:"left",background:"none",border:"none",padding:"2px",cursor:"pointer",color:"var(--text)",fontFamily:"inherit",borderRadius:10}}>
+      <span style={{display:"flex",alignItems:"center",gap:7,fontSize:19,fontWeight:700,letterSpacing:"-0.02em",minWidth:0}}>
+        <span style={{color:accentOf(category),display:"inline-flex"}}><Icon name={category.icon} size={19}/></span>
+        <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{category.name}</span>
+        <span style={{color:"var(--faint)",display:"inline-flex"}}><Icon name="chevronDown" size={17}/></span>
+      </span>
+      {sub&&<span style={{display:"block",fontSize:12.5,color:"var(--muted)",fontWeight:400,marginTop:1}}>{sub}</span>}
+    </button>
+    {open&&createPortal(
+      <Sheet onClose={()=>setOpen(false)} label="Switch category">
+        <div style={{fontSize:13,fontWeight:600,color:"var(--muted)",margin:"0 4px 10px"}}>Jump to</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+          {[...CATEGORIES,RECS_CATEGORY].map((c,k)=>{
+            const on=c.key===category.key, ca=accentOf(c);
+            const n=c.key==="recommendations"?items.filter(i=>i.gilliesRecommendation).length:items.filter(i=>i.category===c.key).length;
+            return(
+              <button key={c.key} onClick={()=>{setOpen(false);if(!on)onPick(c);}} className="press" aria-current={on||undefined}
+                style={{display:"flex",alignItems:"center",gap:10,textAlign:"left",padding:"10px 12px",minHeight:58,borderRadius:14,cursor:"pointer",fontFamily:"inherit",
+                  background:on?`${ca}14`:"var(--surface-2)",border:`1px solid ${on?ca+"55":"var(--border)"}`,animation:`fadeUp .3s var(--ease-out) ${k*0.025}s both`}}>
+                <span style={{width:34,height:34,borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:`${ca}1f`,color:ca}}><Icon name={c.icon} size={18}/></span>
+                <span style={{minWidth:0}}>
+                  <span style={{display:"block",fontSize:14,fontWeight:600,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{c.key==="recommendations"?"Gillie's Picks":c.name}</span>
+                  <span style={{display:"block",fontSize:12,color:"var(--muted)"}}>{n} item{n!==1?"s":""}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Sheet>,document.body)}
+  </>);
+}
+
+// Grey placeholder cards shown while a list loads
+function SkeletonCards({n=3,h=84}){
+  return <div aria-busy="true" aria-label="Loading">{Array.from({length:n},(_,i)=><div key={i} className="skel" style={{height:h,borderRadius:16,marginBottom:10,animationDelay:`${i*0.08}s`}}/>)}</div>;
+}
+
 // ── ItemCard ──────────────────────────────────────────────────────────────────
 function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=false}){
   const layout=useContext(LayoutCtx);
@@ -676,25 +769,20 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
       }}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,position:"relative",opacity:oos?.62:1,transition:"opacity .25s var(--ease)"}}>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:7,lineHeight:1.3,letterSpacing:"-0.01em",textDecoration:oos?"line-through":"none"}}>{item.name}</div>
-          <div style={{display:"flex",gap:5,flexWrap:"wrap",alignItems:"center"}}>
-            {oos&&<span style={{...TAG,background:"var(--danger-soft)",color:"var(--danger)",fontWeight:600}}>Out of stock</span>}
-            {!oos&&isLowStock&&<span style={{...TAG,background:"rgba(230,126,34,.13)",color:"#d9731a",fontWeight:600}}>Low stock</span>}
-            {isPackSub&&item.packSize&&<span style={TAG}>{item.packSize}</span>}
-            {isPackSub&&item.containerType&&<span style={TAG}>{item.containerType}</span>}
-            {isWineSub&&item.wineType&&<span style={TAG}>{item.wineType}</span>}
-            {priceSchedule(item).map(x=>{const today=x.days.includes(String(new Date().getDay()));return(
-              <span key={x.days} style={{...TAG,...(today?{background:"var(--success-soft)",color:"var(--success)",fontWeight:600}:{}),fontVariantNumeric:"tabular-nums"}}>{daysLabel(x.days)} ${x.price.toFixed(2)}</span>
-            );})}
-            {hasInventory&&<span style={TAG}>{item.inventory} left</span>}
-            {item.gilliesRecommendation&&<span style={{...TAG,background:"var(--brand-soft)",color:"var(--brand)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><Icon name="star" size={12} stroke={2.4}/>Gillie's pick</span>}
-            {item.location&&<span style={{fontSize:12.5,color:"var(--muted)",display:"inline-flex",alignItems:"center",gap:3,marginLeft:1}}><Icon name="pin" size={13}/>{item.location}</span>}
-            {item.expiryDate&&(()=>{
-              const days=Math.ceil((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
-              if(days>7)return null;
-              const color=days<=0?"#e74c3c":days<=3?"#e74c3c":"#e67e22";
-              return <span style={{...TAG,background:`${color}1f`,color,fontWeight:600}}>{days<=0?"⚠️ Expired":`⚠️ Exp. ${days}d`}</span>;
+          <div style={{fontSize:16,fontWeight:600,color:"var(--text)",marginBottom:6,lineHeight:1.3,letterSpacing:"-0.01em",textDecoration:oos?"line-through":"none"}}>
+            {item.name}{item.gilliesRecommendation&&<span title="Gillie's pick" aria-label="Gillie's pick" style={{color:"var(--brand)",display:"inline-flex",verticalAlign:"-2px",marginLeft:6}}><Icon name="star" size={14} stroke={2.4}/></span>}
+          </div>
+          {/* One status at most, then plain details — the rest lives in the expanded view */}
+          <div style={{display:"flex",gap:7,flexWrap:"wrap",alignItems:"center",fontSize:12.5,color:"var(--muted)"}}>
+            {(()=>{
+              if(oos)return <span style={{...TAG,background:"var(--danger-soft)",color:"var(--danger)",fontWeight:600}}>Out of stock</span>;
+              const d=item.expiryDate?Math.ceil((new Date(item.expiryDate)-new Date())/864e5):99;
+              if(d<=7){const c=d<=3?"var(--danger)":"#d9731a";return <span style={{...TAG,background:d<=3?"var(--danger-soft)":"rgba(230,126,34,.13)",color:c,fontWeight:600}}>{d<=0?"Expired":`Expires in ${d}d`}</span>;}
+              if(isLowStock)return <span style={{...TAG,background:"rgba(230,126,34,.13)",color:"#d9731a",fontWeight:600}}>Low stock · {item.inventory} left</span>;
+              return null;
             })()}
+            {(()=>{const d=[isPackSub&&item.packSize,isPackSub&&item.containerType,isWineSub&&item.wineType].filter(Boolean);return d.length?<span>{d.join(" · ")}</span>:null;})()}
+            {item.location&&<span style={{display:"inline-flex",alignItems:"center",gap:3}}><Icon name="pin" size={13}/>{item.location}</span>}
           </div>
         </div>
         <div style={{textAlign:"right",flexShrink:0}}>
@@ -707,6 +795,15 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
       <div style={{display:"grid",gridTemplateRows:expanded?"1fr":"0fr",transition:"grid-template-rows .32s var(--ease)"}}>
         <div style={{overflow:"hidden"}}>
           <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid var(--border)",position:"relative",zIndex:2,opacity:expanded?1:0,transition:"opacity .25s var(--ease)"}} onClick={e=>e.stopPropagation()}>
+            {(priceSchedule(item).length>0||hasInventory||item.gilliesRecommendation)&&(
+              <div style={{display:"flex",gap:5,flexWrap:"wrap",marginBottom:10}}>
+                {priceSchedule(item).map(x=>{const today=x.days.includes(String(new Date().getDay()));return(
+                  <span key={x.days} style={{...TAG,...(today?{background:"var(--success-soft)",color:"var(--success)",fontWeight:600}:{}),fontVariantNumeric:"tabular-nums"}}>{daysLabel(x.days)} ${x.price.toFixed(2)}</span>
+                );})}
+                {hasInventory&&<span style={TAG}>{item.inventory} in stock</span>}
+                {item.gilliesRecommendation&&<span style={{...TAG,background:"var(--brand-soft)",color:"var(--brand)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><Icon name="star" size={12} stroke={2.4}/>Gillie's pick</span>}
+              </div>
+            )}
             {totalLabel&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10,fontSize:13,color:"var(--muted)"}}><span>Price ${todayPrice.toFixed(2)}{item.taxable&&` + tax $${tax.toFixed(2)}`}{item.deposit>0&&` + deposit $${item.deposit.toFixed(2)}`}</span><span style={{fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
             {item.notes&&<div style={{fontSize:13,color:"var(--muted)",marginBottom:10,padding:"9px 11px",background:"var(--surface-2)",borderRadius:10,lineHeight:1.5}}>{item.notes}</div>}
             {item.expiryDate&&(()=>{
@@ -714,7 +811,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
               const color=days<=0?"#e74c3c":days<=3?"#e74c3c":days<=7?"#e67e22":"#27ae60";
               return(
                 <div style={{fontSize:13,color,marginBottom:10,padding:"9px 11px",background:`${color}17`,borderRadius:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span>{days<=0?"⚠️ Expired":days<=7?"⚠️ Expiring soon":"✓ Next expiry"}</span>
+                  <span>{days<=0?"Expired":days<=7?"Expiring soon":"Next expiry"}</span>
                   <span style={{fontWeight:700}}>{days<=0?"Expired":days===1?"Tomorrow":`${days} days — ${new Date(item.expiryDate+"T12:00").toLocaleDateString("en",{month:"short",day:"numeric"})}`}</span>
                 </div>
               );
@@ -977,7 +1074,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
                   style={{padding:"11px 14px",borderTop:idx?"1px solid var(--border)":"none",display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,animation:`fadeIn .2s var(--ease) ${idx*0.03}s both`,cursor:"pointer"}}>
                   <div style={{minWidth:0}}>
                     <div style={{fontSize:15,fontWeight:600,color:"var(--text)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{item.name}</div>
-                    <div style={{fontSize:12,color:"var(--muted)",marginTop:1}}>{cat?.icon} {cat?.name}</div>
+                    <div style={{fontSize:12,color:"var(--muted)",marginTop:1}}>{cat?.name}</div>
                   </div>
                   <div style={{fontSize:16,fontWeight:700,color:cat?catAccent(cat.key,isDark):"var(--brand)",fontVariantNumeric:"tabular-nums"}}>${priceOn(item).toFixed(2)}</div>
                 </div>
@@ -998,7 +1095,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
             <button key={cat.key} onClick={()=>onSelectCategory(cat)} className="press lift"
               style={{textAlign:"left",background:"var(--surface)",border:"1px solid var(--border)",boxShadow:"var(--shadow)",borderRadius:18,padding:14,cursor:"pointer",
                 display:"flex",flexDirection:"column",gap:12,minHeight:118,animation:`fadeUp .4s var(--ease-out) ${idx*0.035}s both`}}>
-              <span style={{width:44,height:44,borderRadius:13,background:`${a}1c`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:23}}>{cat.icon}</span>
+              <span style={{width:44,height:44,borderRadius:13,background:`${a}1c`,color:a,display:"flex",alignItems:"center",justifyContent:"center"}}><Icon name={cat.icon} size={22}/></span>
               <span>
                 <span style={{display:"block",fontSize:15,fontWeight:600,color:"var(--text)",letterSpacing:"-0.01em"}}>{cat.name}</span>
                 <span style={{display:"block",fontSize:12.5,color:"var(--muted)",marginTop:2}}>{count} item{count!==1?"s":""}{oos>0&&<span style={{color:"var(--danger)"}}> · {oos} out</span>}</span>
@@ -1029,7 +1126,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 }
 
 // ── CategoryPage ──────────────────────────────────────────────────────────────
-function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false,bannerOffset=0}){
+function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false,bannerOffset=0}){
   const layout=useContext(LayoutCtx);
   const taxRate=useContext(TaxCtx);
   function requireManager(){
@@ -1049,19 +1146,16 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
     return(
       <div style={{minHeight:"100vh",background:bg,fontFamily:"var(--font)",paddingBottom:110}}>
         <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
-        <div style={{background:"var(--bg)",borderBottom:`1px solid ${border}`,padding:"16px 14px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:0}}>
-            <button onClick={onBack} style={{background:"var(--brand-soft)",border:`1px solid ${border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:text,fontFamily:"inherit",flexShrink:0}}>←</button>
-            <div>
-              <div style={{fontSize:18,fontWeight:700,color:accent}}>⭐ Gillie's Recommendations</div>
-              <div style={{fontSize:11,color:sub}}>{recItems.length} item{recItems.length!==1?"s":""} · personally selected by the owner</div>
-            </div>
+        <div style={{position:"sticky",top:bannerOffset,zIndex:100,background:"var(--glass)",backdropFilter:"saturate(1.4) blur(14px)",WebkitBackdropFilter:"saturate(1.4) blur(14px)",borderBottom:"1px solid var(--border)",padding:"12px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <IconButton icon="back" label="Back" onClick={onBack}/>
+            <CategoryTitle category={category} items={items} isDark={isDark} onPick={onSwitchCategory} sub={`${recItems.length} item${recItems.length!==1?"s":""} · picked by the owner`}/>
           </div>
         </div>
         <div style={{padding:"14px"}}>
           {recItems.length===0&&(
             <div style={{textAlign:"center",padding:"50px 20px",color:sub}}>
-              <div style={{fontSize:40,marginBottom:10}}>⭐</div>
+              <span style={{...EMPTY_ICON,background:"var(--brand-soft)",color:"var(--brand)"}}><Icon name="star" size={26}/></span>
               <div style={{fontSize:16,fontWeight:600,color:text,marginBottom:6}}>No recommendations yet</div>
               <div style={{fontSize:13}}>Toggle "Gillie's Recommendation" on any item to feature it here</div>
             </div>
@@ -1294,7 +1388,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             <div style={{fontSize:13,color:"#e07070",fontWeight:600}}>{selected.size} item{selected.size!==1?"s":""} selected</div>
             <div style={{display:"flex",gap:8}}>
               <button onClick={()=>setSelected(new Set(filtered.map(i=>i.id)))} style={{padding:"7px 12px",background:"transparent",border:"1px solid #3a2a2a",borderRadius:8,color:"#e07070",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Select All</button>
-              <button onClick={()=>setConfirmDelete({id:"__mass__",name:`${selected.size} item${selected.size!==1?"s":""}`,ids:[...selected]})} style={{padding:"7px 14px",background:"#e74c3c",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>
+              <button onClick={()=>setConfirmDelete({id:"__mass__",name:`${selected.size} item${selected.size!==1?"s":""}`,ids:[...selected]})} style={{padding:"7px 14px",background:"#e74c3c",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
             </div>
           </div>
         </div>
@@ -1308,10 +1402,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
         )}
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
           <IconButton icon="back" label="Back" onClick={onBack}/>
-          <div style={{flex:1,minWidth:0,paddingLeft:2}}>
-            <div style={{fontSize:19,fontWeight:700,color:"var(--text)",letterSpacing:"-0.02em",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}><span style={{marginRight:6}}>{category.icon}</span>{category.name}</div>
-            <div style={{fontSize:12.5,color:"var(--muted)"}}>{filtered.length} item{filtered.length!==1?"s":""}{syncing&&<span style={{animation:"pulse 1s infinite"}}> · Saving…</span>}</div>
-          </div>
+          <CategoryTitle category={category} items={items} isDark={isDark} onPick={onSwitchCategory}
+            sub={<>{filtered.length} item{filtered.length!==1?"s":""}{syncing&&<span style={{animation:"pulse 1s infinite"}}> · Saving…</span>}</>}/>
           {isDev&&<IconButton icon={massSelectMode?"x":"trash"} label={massSelectMode?"Stop selecting":"Select items to delete"} active={massSelectMode} tone={massSelectMode?"var(--danger)":undefined}
             onClick={()=>{setMassSelectMode(m=>!m);setSelected(new Set());}}/>}
           <IconButton icon={isManager?"unlock":"lock"} label={isManager?"Signed in":"Manager sign in"} onClick={()=>onRequireManager()} tone={isManager?accentColor:undefined}/>
@@ -1324,7 +1416,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
           {category.subcategories.map(sub=>(
             <button key={sub.key} onClick={()=>{setActiveSub(sub.key===activeSub?null:sub.key);setFilterPack("All");setFilterContainer("All");}} className="press"
               style={chipStyle(activeSub===sub.key,accentColor,T.accentText)}>
-              <span>{sub.icon}</span>{sub.name}
+              <Icon name={sub.icon} size={15}/>{sub.name}
             </button>
           ))}
         </div>
@@ -1378,7 +1470,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
               <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
                 {category.subcategories.map(sub=>(
                   <button key={sub.key} onClick={()=>setSubcategory(sub.key)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${form.subcategory===sub.key?accentColor:T.border}`,background:form.subcategory===sub.key?accentColor:"transparent",color:form.subcategory===sub.key?T.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
-                    {sub.icon} {sub.name}
+                    <span style={{display:"inline-flex",alignItems:"center",gap:6}}><Icon name={sub.icon} size={14}/>{sub.name}</span>
                   </button>
                 ))}
               </div>
@@ -1432,7 +1524,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Container</div>
                 <div style={{display:"flex",gap:6}}>
                   {CONTAINER_TYPES.map(c=>(
-                    <button key={c} onClick={()=>setForm(f=>({...f,containerType:c}))} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${form.containerType===c?accentColor:T.border}`,background:form.containerType===c?accentColor:"transparent",color:form.containerType===c?T.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:form.containerType===c?700:400}}>{c==="Can"?"🥫 Can":"🍶 Bottle"}</button>
+                    <button key={c} onClick={()=>setForm(f=>({...f,containerType:c}))} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${form.containerType===c?accentColor:T.border}`,background:form.containerType===c?accentColor:"transparent",color:form.containerType===c?T.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:form.containerType===c?700:400}}>{c}</button>
                   ))}
                 </div>
               </div>
@@ -1476,7 +1568,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                   }} accent={accentColor}/>}
                   {form.mapZone&&(
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6}}>
-                      <span style={{fontSize:11,color:accentColor,fontWeight:600}}>📍 {layout.zones.find(z=>z.key===form.mapZone)?.label}</span>
+                      <span style={{fontSize:11,color:accentColor,fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><Icon name="pin" size={12}/>{layout.zones.find(z=>z.key===form.mapZone)?.label}</span>
                       <button onClick={()=>setForm(f=>({...f,mapZone:null}))} style={{fontSize:11,color:baseT.sub,background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit"}}>✕ Clear</button>
                     </div>
                   )}
@@ -1530,7 +1622,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             {/* Gillie's Recommendation toggle */}
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.gilliesRecommendation?"#f0c04044":T.border}`,borderRadius:10,transition:"border-color 0.25s ease"}}>
               <div>
-                <div style={{fontSize:14,color:"var(--text)"}}>⭐ Gillie's Recommendation</div>
+                <div style={{fontSize:14,color:"var(--text)",display:"flex",alignItems:"center",gap:6}}><span style={{color:"var(--brand)",display:"inline-flex"}}><Icon name="star" size={15}/></span>Gillie's Recommendation</div>
                 <div style={{fontSize:11,color:"var(--muted)",marginTop:2}}>Highlighted in the recommendations section</div>
               </div>
               <button onClick={()=>setForm(f=>({...f,gilliesRecommendation:!f.gilliesRecommendation}))}
@@ -1555,7 +1647,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 {form.expiryDate&&(()=>{
                   const days=Math.ceil((new Date(form.expiryDate)-new Date())/(1000*60*60*24));
                   const color=days<=3?"#e74c3c":days<=7?"#e67e22":"#27ae60";
-                  return <div style={{fontSize:11,color,marginTop:4,fontWeight:600}}>{days<=0?"⚠️ Expired":days===1?"⚠️ Expires tomorrow":`✓ Expires in ${days} day${days!==1?"s":""}`}</div>;
+                  return <div style={{fontSize:11,color,marginTop:4,fontWeight:600}}>{days<=0?"Expired":days===1?"Expires tomorrow":`Expires in ${days} day${days!==1?"s":""}`}</div>;
                 })()}
               </div>
             )}
@@ -1568,7 +1660,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
 
         {filtered.length===0&&!showForm&&(
           <div style={{textAlign:"center",color:baseT.sub,padding:"50px 20px"}}>
-            <span style={EMPTY_ICON}><span style={{fontSize:26}}>{category.icon}</span></span>
+            <span style={EMPTY_ICON}><Icon name={category.icon} size={26}/></span>
             <div style={{fontSize:15}}>No items{hasFilters?" matching filters":""}.{hasFilters&&<span style={{display:"block",fontSize:12,marginTop:4,opacity:0.7}}>Try resetting filters.</span>}</div>
           </div>
         )}
@@ -1622,7 +1714,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             </div>
           )) : wineGroups ? wineGroups.map(type=>(
             <div key={type} style={{animation:"fadeUp 0.25s ease both"}}>
-              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:accentColor,margin:"18px 0 8px",opacity:0.8}}>🍷 {type}</div>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:accentColor,margin:"18px 0 8px",opacity:0.8}}>{type}</div>
               {filtered.filter(i=>i.wineType===type).map((item,idx)=>renderItem(item,idx))}
             </div>
           )) : !activeSub ? category.subcategories.map(sub=>{
@@ -1630,7 +1722,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             if(!subItems.length)return null;
             return(
               <div key={sub.key}>
-                <div style={{fontSize:14,fontWeight:600,color:"var(--muted)",margin:"20px 4px 10px",display:"flex",alignItems:"center",gap:7}}><span style={{fontSize:15}}>{sub.icon}</span>{sub.name}</div>
+                <div style={{fontSize:14,fontWeight:600,color:"var(--muted)",margin:"20px 4px 10px",display:"flex",alignItems:"center",gap:7}}><Icon name={sub.icon} size={16}/>{sub.name}</div>
                 {subItems.map((item,idx)=>renderItem(item,idx))}
               </div>
             );
@@ -1643,13 +1735,13 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
 
 // ── BugsPage ──────────────────────────────────────────────────────────────────
 function BugsPage({T,isManager,onRequireManager,managerDisabled=false}){
-  const [knownBugs,setKnownBugs]=useState([]);
+  const [knownBugs,setKnownBugs]=useState(null); // null while loading
   const [reports,setReports]=useState([]);
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({title:"",description:"",severity:"Medium"});
   const inp={};
   useEffect(()=>{
-    sb.from("known_bugs").select("*").order("id",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
+    sb.from("known_bugs").select("*").order("id",{ascending:false}).then(({data})=>setKnownBugs(data||[]),()=>setKnownBugs([]));
   },[]);
   return(
     <div style={{fontFamily:"var(--font)"}}>
@@ -1657,8 +1749,9 @@ function BugsPage({T,isManager,onRequireManager,managerDisabled=false}){
     <div style={{padding:"16px 16px 20px"}}>
       <div style={{fontSize:17,fontWeight:700,color:"var(--text)",marginBottom:4}}>Known bugs</div>
       <div style={{fontSize:12,color:T.sub||T.subText,marginBottom:16}}>Issues the team is aware of</div>
-      {knownBugs.length===0&&<div style={{textAlign:"center",padding:"24px",background:T.card||T.cardBg,borderRadius:12,border:`1px solid ${T.border||T.cardBorder}`,marginBottom:20}}><span style={{...EMPTY_ICON,background:"var(--success-soft)",color:"var(--success)",width:48,height:48,borderRadius:15,marginBottom:10}}><Icon name="check" size={22}/></span><div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:2}}>No known bugs!</div><div style={{fontSize:12,color:T.sub||T.subText}}>Found something? Report it below.</div></div>}
-      {knownBugs.map(bug=><BugCard key={bug.id} bug={bug} T={{card:T.card||T.cardBg,border:T.border||T.cardBorder,text:"var(--text)",sub:T.sub||T.subText}} canDelete={false}/>)}
+      {knownBugs===null&&<SkeletonCards n={2} h={76}/>}
+      {knownBugs?.length===0&&<div style={{textAlign:"center",padding:"24px",background:T.card||T.cardBg,borderRadius:12,border:`1px solid ${T.border||T.cardBorder}`,marginBottom:20}}><span style={{...EMPTY_ICON,background:"var(--success-soft)",color:"var(--success)",width:48,height:48,borderRadius:15,marginBottom:10}}><Icon name="check" size={22}/></span><div style={{fontSize:14,fontWeight:600,color:"var(--text)",marginBottom:2}}>No known bugs!</div><div style={{fontSize:12,color:T.sub||T.subText}}>Found something? Report it below.</div></div>}
+      {(knownBugs||[]).map(bug=><BugCard key={bug.id} bug={bug} T={{card:T.card||T.cardBg,border:T.border||T.cardBorder,text:"var(--text)",sub:T.sub||T.subText}} canDelete={false}/>)}
       <div style={{height:1,background:T.border||T.cardBorder,margin:"24px 0"}}/>
       <div style={{fontSize:17,fontWeight:700,color:"var(--text)",marginBottom:4}}>Report a bug</div>
       <div style={{fontSize:12,color:T.sub||T.subText,marginBottom:16}}>Requires manager PIN</div>
@@ -1701,28 +1794,27 @@ function DevDataTools({items,setItems}){
     reader.onload=ev=>alert(`Import preview: ${ev.target.result.split("\n").length-1} rows found. (Full import not wired yet.)`);
     reader.readAsText(file);e.target.value="";
   }
-  const btn={minHeight:44,padding:"10px",background:`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"};
-  const area={width:"100%",minHeight:180,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:10,color:DT.text,fontSize:11,fontFamily:"var(--mono)",resize:"vertical",marginTop:10};
+  const btn={minHeight:44,padding:"10px 12px",background:`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"};
+  const area={width:"100%",minHeight:180,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:10,color:DT.text,fontSize:11,fontFamily:"var(--mono)",resize:"vertical",marginTop:10};
   return(
     <>
-      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// data.items</div>
-      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
-        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Item Data</div>
-        <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em"}}>// {items.length} items · export or import</div>
+      <div style={DEV_CARD}>
+        <div style={DEV_TITLE}>Item data</div>
+        <div style={{fontSize:12.5,color:DT.subText,marginBottom:12}}>{items.length} items. Export a backup or load data in.</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-          <button onClick={downloadCSV} style={btn}>EXPORT_CSV ↓</button>
-          <button onClick={()=>setView(v=>v==="show"?null:"show")} style={btn}>{view==="show"?"✕ HIDE_JSON":"SHOW_JSON"}</button>
-          <button onClick={()=>fileRef.current?.click()} style={btn}>IMPORT_CSV ↑</button>
-          <button onClick={()=>setView(v=>v==="paste"?null:"paste")} style={btn}>{view==="paste"?"✕ CANCEL":"PASTE_JSON"}</button>
+          <button onClick={downloadCSV} style={btn}>Export CSV</button>
+          <button onClick={()=>setView(v=>v==="show"?null:"show")} style={btn}>{view==="show"?"Hide JSON":"Show JSON"}</button>
+          <button onClick={()=>fileRef.current?.click()} style={btn}>Import CSV</button>
+          <button onClick={()=>setView(v=>v==="paste"?null:"paste")} style={btn}>{view==="paste"?"Cancel":"Paste JSON"}</button>
         </div>
         <input ref={fileRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
         {view==="show"&&<>
           <textarea readOnly value={JSON.stringify(items,null,2)} style={area} onFocus={e=>e.target.select()}/>
-          <button onClick={()=>navigator.clipboard.writeText(JSON.stringify(items)).catch(()=>{})} style={{...btn,width:"100%",marginTop:8}}>COPY →</button>
+          <button onClick={()=>navigator.clipboard.writeText(JSON.stringify(items)).catch(()=>{})} style={{...btn,width:"100%",marginTop:8}}>Copy</button>
         </>}
         {view==="paste"&&<>
-          <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="// paste JSON array here" style={area}/>
-          <button onClick={()=>{try{const p=JSON.parse(pasteText);if(!Array.isArray(p))throw 0;setItems(p);setView(null);setPasteText("");}catch{alert("Invalid JSON (expected an array)");}}} style={{...btn,width:"100%",marginTop:8}}>LOAD →</button>
+          <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="Paste a JSON array here" style={area}/>
+          <button onClick={()=>{try{const p=JSON.parse(pasteText);if(!Array.isArray(p))throw 0;setItems(p);setView(null);setPasteText("");}catch{alert("Invalid JSON (expected an array)");}}} style={{...btn,width:"100%",marginTop:8}}>Load</button>
         </>}
       </div>
     </>
@@ -1733,39 +1825,38 @@ function DevDataTools({items,setItems}){
 function DevShiftPresets({list,onChange,storeHours}){
   const set=(i,k,v)=>onChange(list.map((p,j)=>j===i?{...p,[k]:v}:p));
   const auto=shiftPresets(storeHoursFor(storeHours,1)); // Monday's hours as the starting point
-  const field={background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"8px",color:DT.text,fontSize:12,fontFamily:"var(--mono)",minWidth:0,colorScheme:"dark"};
-  const btn={width:"100%",minHeight:40,padding:"8px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.06em"};
+  const field={background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"8px",color:DT.text,fontSize:12,fontFamily:"inherit",minWidth:0,colorScheme:"dark"};
+  const btn={width:"100%",minHeight:40,padding:"8px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"};
   return(
     <>
-      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.shiftPresets</div>
-      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
-        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Quick-Time Shifts</div>
+      <div style={DEV_CARD}>
+        <div style={DEV_TITLE}>Quick-time shifts</div>
         {list.length===0?(<>
-          <div style={{fontSize:11,color:DT.subText,marginBottom:12,lineHeight:1.6,letterSpacing:"0.04em"}}>
-            // automatic: follows each day's store hours<br/>
-            {auto.map(p=><span key={p.label}>// {p.label}: {fmtMin(p.start)} – {fmtMin(p.end)} (Mon)<br/></span>)}
+          <div style={{fontSize:12.5,color:DT.subText,marginBottom:12,lineHeight:1.6}}>
+            Automatic: follows each day's store hours<br/>
+            {auto.map(p=><span key={p.label}>{p.label}: {fmtMin(p.start)} – {fmtMin(p.end)} (Mon)<br/></span>)}
           </div>
-          <button onClick={()=>onChange(auto.map(p=>({label:p.label,start:minToTime(p.start),end:minToTime(p.end)})))} style={btn}>CUSTOMIZE →</button>
+          <button onClick={()=>onChange(auto.map(p=>({label:p.label,start:minToTime(p.start),end:minToTime(p.end)})))} style={btn}>Customize</button>
         </>):(<>
-          <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em"}}>// {list.length} custom · shown as buttons when adding a shift</div>
+          <div style={{fontSize:12.5,color:DT.subText,marginBottom:12}}>{list.length} custom, shown as buttons when adding a shift.</div>
           {list.map((p,i)=>(
             <div key={i} style={{border:`1px solid ${DT.cardBorder}`,borderRadius:8,padding:10,marginBottom:8,display:"grid",gap:8}}>
               <div style={{display:"flex",gap:8,alignItems:"center"}}>
                 <input value={p.label} onChange={e=>set(i,"label",e.target.value)} placeholder="Name, e.g. Opening" style={{...field,flex:1}}/>
                 <button aria-label={`Delete ${p.label||"preset"}`} onClick={()=>onChange(list.filter((_,j)=>j!==i))}
-                  style={{width:36,height:36,flexShrink:0,background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.red,cursor:"pointer",fontSize:14}}>✕</button>
+                  style={{width:36,height:36,flexShrink:0,background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:10,color:DT.red,cursor:"pointer",fontSize:14}}>✕</button>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:6,alignItems:"center"}}>
                 <input type="time" value={p.start} onChange={e=>set(i,"start",e.target.value)} style={field}/>
                 <span style={{color:DT.subText,fontSize:12}}>to</span>
                 <input type="time" value={p.end} onChange={e=>set(i,"end",e.target.value)} style={field}/>
               </div>
-              {p.start&&p.end&&<div style={{fontSize:10,color:DT.subText,letterSpacing:"0.04em"}}>// {+parseHours(p.start,p.end).toFixed(2)}h{toMin(p.end)<=toMin(p.start)?" · ends next day":""}</div>}
+              {p.start&&p.end&&<div style={{fontSize:10,color:DT.subText}}>{+parseHours(p.start,p.end).toFixed(2)}h{toMin(p.end)<=toMin(p.start)?" · ends next day":""}</div>}
             </div>
           ))}
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-            <button onClick={()=>onChange([...list,{label:"",start:"09:00",end:"17:00"}])} style={btn}>+ ADD_PRESET</button>
-            <button onClick={()=>onChange([])} style={{...btn,color:DT.subText,borderColor:DT.cardBorder}}>RESET_TO_AUTO</button>
+            <button onClick={()=>onChange([...list,{label:"",start:"09:00",end:"17:00"}])} style={btn}>Add preset</button>
+            <button onClick={()=>onChange([])} style={{...btn,color:DT.subText,borderColor:DT.cardBorder}}>Reset to automatic</button>
           </div>
         </>)}
       </div>
@@ -1786,24 +1877,23 @@ function DevTaxBulk({items,setItems,taxRate}){
     const set=new Set(ids);
     setItems(prev=>prev.map(i=>set.has(i.id)?{...i,taxable}:i));
   }
-  const small=on=>({padding:"6px 10px",minHeight:32,background:on?`${DT.accent}22`:"transparent",border:`1px solid ${on?DT.accent+"66":DT.cardBorder}`,borderRadius:6,color:on?DT.accent:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.04em"});
+  const small=on=>({padding:"6px 10px",minHeight:32,background:on?`${DT.accent}22`:"transparent",border:`1px solid ${on?DT.accent+"66":DT.cardBorder}`,borderRadius:10,color:on?DT.accent:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"});
   return(
     <>
-      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// data.salesTax</div>
-      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
-        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Sales Tax by Subcategory</div>
-        <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em",lineHeight:1.6}}>// sets the {(taxRate*100).toFixed(2)}% tax switch on every item in a subcategory; single items can still be changed in their edit form</div>
+      <div style={DEV_CARD}>
+        <div style={DEV_TITLE}>Sales tax by subcategory</div>
+        <div style={{fontSize:12.5,color:DT.subText,marginBottom:12,lineHeight:1.6}}>Sets the {(taxRate*100).toFixed(2)}% tax switch on every item in a subcategory. Single items can still be changed in their edit form.</div>
         {CATEGORIES.map(c=>{
           const subs=c.subcategories.map(sub=>({sub,list:items.filter(i=>i.category===c.key&&i.subcategory===sub.key)})).filter(x=>x.list.length);
           if(!subs.length)return null;
           return(
             <div key={c.key} style={{marginBottom:10}}>
-              <div style={{fontSize:11,color:DT.accent,letterSpacing:"0.08em",textTransform:"uppercase",margin:"6px 0"}}>{c.name}</div>
+              <div style={{fontSize:11,color:DT.accent,textTransform:"uppercase",margin:"6px 0"}}>{c.name}</div>
               {subs.map(({sub,list})=>{const n=list.filter(i=>i.taxable).length;return(
-                <div key={sub.key} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderTop:`1px solid ${DT.cardBorder}`}}>
-                  <div style={{flex:1,minWidth:0,fontSize:12,color:DT.text}}>{sub.name}<div style={{fontSize:10.5,color:DT.subText}}>{n===0?"no tax":n===list.length?"all taxed":`${n} of ${list.length} taxed`} · {list.length} item{list.length!==1?"s":""}</div></div>
-                  <button disabled={busy===sub.key} onClick={()=>setSub(c.key,sub,true)} style={small(n===list.length)}>TAX ALL</button>
-                  <button disabled={busy===sub.key} onClick={()=>setSub(c.key,sub,false)} style={small(n===0)}>NO TAX</button>
+                <div key={sub.key} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderTop:`1px solid ${DT.cardBorder}`}}>
+                  <div style={{flex:1,minWidth:0,fontSize:14,fontWeight:500,color:DT.text}}>{sub.name}<div style={{fontSize:12,fontWeight:400,color:DT.subText}}>{n===0?"no tax":n===list.length?"all taxed":`${n} of ${list.length} taxed`} · {list.length} item{list.length!==1?"s":""}</div></div>
+                  <button disabled={busy===sub.key} onClick={()=>setSub(c.key,sub,true)} style={small(n===list.length)}>Tax all</button>
+                  <button disabled={busy===sub.key} onClick={()=>setSub(c.key,sub,false)} style={small(n===0)}>No tax</button>
                 </div>
               );})}
             </div>
@@ -1834,13 +1924,12 @@ function DevNewspaperMerge({items,setItems}){
       setState(/day_prices/.test(e?.message||"")?"✕ Run the SQL first: alter table items add column if not exists day_prices text;":`✕ ${e?.message||"Something went wrong"}`);
     }
   }
-  const btn={width:"100%",minHeight:44,padding:"10px",background:`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"};
+  const btn={width:"100%",minHeight:44,padding:"10px 12px",background:`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"};
   return(
     <>
-      <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// data.newspapers</div>
-      <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
-        <div style={{fontSize:14,fontWeight:700,color:DT.text,marginBottom:4}}>Combine Newspaper Prices</div>
-        <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em",lineHeight:1.6}}>// one item per paper, with its price for each day</div>
+      <div style={DEV_CARD}>
+        <div style={DEV_TITLE}>Combine newspaper prices</div>
+        <div style={{fontSize:12.5,color:DT.subText,marginBottom:12,lineHeight:1.6}}>One item per paper, with its price for each day.</div>
         {plan.map(g=>(
           <div key={g.keep.id} style={{fontSize:12,color:DT.text,padding:"6px 0",borderTop:`1px solid ${DT.cardBorder}`}}>
             <b>{g.name}</b>
@@ -1848,12 +1937,12 @@ function DevNewspaperMerge({items,setItems}){
           </div>
         ))}
         <div style={{marginTop:12}}>
-          {state===null&&plan.length>0&&<button onClick={()=>setState("ask")} style={btn}>COMBINE →</button>}
+          {state===null&&plan.length>0&&<button onClick={()=>setState("ask")} style={btn}>Combine</button>}
           {state==="ask"&&<div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
-            <button onClick={()=>setState(null)} style={{...btn,color:DT.subText,borderColor:DT.cardBorder}}>CANCEL</button>
-            <button onClick={run} style={{...btn,background:DT.accent,color:"#000",fontWeight:700}}>CONFIRM: DELETE {plan.reduce((a,g)=>a+g.remove.length,0)} DUPLICATES</button>
+            <button onClick={()=>setState(null)} style={{...btn,color:DT.subText,borderColor:DT.cardBorder}}>Cancel</button>
+            <button onClick={run} style={{...btn,background:DT.accent,color:"#000",fontWeight:700}}>Delete {plan.reduce((a,g)=>a+g.remove.length,0)} DUPLICATES</button>
           </div>}
-          {state==="busy"&&<div style={{fontSize:12,color:DT.subText}}>// combining…</div>}
+          {state==="busy"&&<div style={{fontSize:12,color:DT.subText}}>Combining…</div>}
           {typeof state==="string"&&/^[✓✕]/.test(state)&&<div style={{fontSize:12,color:state[0]==="✓"?DT.accent:DT.red,lineHeight:1.5}}>{state}</div>}
         </div>
       </div>
@@ -1904,7 +1993,7 @@ function NotifBanner({notif,onExpire}){
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={{width:8,height:8,borderRadius:"50%",background:col.dot,flexShrink:0,boxShadow:`0 0 8px ${col.dot}88`}}/>
         <span style={{fontSize:12,fontWeight:600,color:col.text,flex:1}}>{notif.message}</span>
-        {timeLeft!==null&&<span style={{fontSize:10,color:col.text,opacity:0.65,flexShrink:0,fontFamily:"var(--mono)"}}>{fmtTime(timeLeft)}</span>}
+        {timeLeft!==null&&<span style={{fontSize:10,color:col.text,opacity:0.65,flexShrink:0,fontFamily:"inherit"}}>{fmtTime(timeLeft)}</span>}
       </div>
     </div>
   );
@@ -1919,12 +2008,14 @@ function StoreBuilderPanel({layout,onSave}){
       .catch(e=>{console.error(e);setFailed(true);});
     return()=>{dead=true;if(b)b.dispose();};
   },[]);// mounts once; the builder keeps its own draft from here
-  if(failed)return <div style={{fontSize:12,color:DT.red,padding:"8px 0 20px",letterSpacing:"0.06em"}}>// ERROR: builder failed to load — check your connection and reopen it</div>;
+  if(failed)return <div style={{fontSize:12,color:DT.red,padding:"8px 0 20px"}}>The builder failed to load. Check your connection and open it again.</div>;
   return <div ref={ref} style={{marginBottom:24}}/>;
 }
 
 function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
   const [showBuilder,setShowBuilder]=useState(false);
+  const [tab,setTab]=useState(()=>{try{return sessionStorage.getItem("dev-tab")||"settings";}catch{return "settings";}});
+  function pickTab(t){setTab(t);window.scrollTo(0,0);try{sessionStorage.setItem("dev-tab",t);}catch{}}
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
   const [managerDisabled,setManagerDisabled]=useState(managerDisabledProp);
@@ -1961,145 +2052,101 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
     setTimeout(()=>setTaxRateSaved(false),2000);
   }
   if(!isDev)return(
-    <div style={{minHeight:"100vh",background:DT.appBg,fontFamily:"'Courier New',Courier,monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,paddingBottom:80}}>
-      <div style={{fontSize:11,color:DT.subText,letterSpacing:"0.15em",marginBottom:12}}>// AUTHENTICATION REQUIRED</div>
-      <div style={{fontSize:28,fontWeight:700,color:DT.accent,marginBottom:8,letterSpacing:"0.05em"}}>ACCESS_DENIED</div>
-      <div style={{fontSize:12,color:DT.subText,marginBottom:32,letterSpacing:"0.05em"}}>Enter developer credentials to proceed</div>
-      <button onClick={onUnlock} style={{padding:"13px 32px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.1em"}}>ENTER_PIN →</button>
+    <div style={{minHeight:"80vh",background:"var(--bg)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,paddingBottom:96,textAlign:"center"}}>
+      <span style={{...EMPTY_ICON,background:`${DT.accent}1f`,color:DT.accent}}><Icon name="terminal" size={26}/></span>
+      <div style={{fontSize:20,fontWeight:700,color:"var(--text)",marginBottom:6,letterSpacing:"-0.02em"}}>Developer access</div>
+      <div style={{fontSize:14,color:"var(--muted)",marginBottom:22}}>Enter the developer PIN to open the console.</div>
+      <button onClick={onUnlock} className="press" style={{...ACTION_BTN("#fff",DT.accent),minHeight:48,padding:"0 26px",fontSize:15,fontWeight:700}}><Icon name="lock" size={16}/>Enter PIN</button>
     </div>
   );
+
   return(
-    <div style={{minHeight:"100vh",background:DT.appBg,fontFamily:"'Courier New',Courier,monospace",paddingBottom:80,animation:"pageEnter 0.28s var(--ease-out)"}}>
-      <div style={{background:DT.headerBg,borderBottom:`1px solid ${DT.cardBorder}`,padding:"16px 16px 14px"}}>
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",marginBottom:3}}>// developer console</div>
-        <div style={{fontSize:20,fontWeight:700,color:DT.accent,letterSpacing:"0.05em",marginBottom:8}}>DEV MODE</div>
-        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-          <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.green}15`,color:DT.green,border:`1px solid ${DT.green}30`,letterSpacing:"0.08em"}}>● SESSION ACTIVE</span>
-          <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`,letterSpacing:"0.08em"}}>● FULL ACCESS</span>
-          {managerDisabled&&<span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.red}15`,color:DT.red,border:`1px solid ${DT.red}30`,letterSpacing:"0.08em"}}>● MANAGERS LOCKED</span>}
+    <div style={{minHeight:"100vh",background:"var(--bg)",fontFamily:"var(--font)",paddingBottom:96,animation:"pageEnter 0.28s var(--ease-out)"}}>
+      <PageHeader title="Developer Console" icon="terminal" accent={DT.accent}
+        sub={managerDisabled?"Manager access is off":"Full access"}>
+        <div role="tablist" aria-label="Console sections" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:6}}>
+          {DEV_TABS.map(t=>(
+            <button key={t.id} role="tab" aria-selected={tab===t.id} onClick={()=>pickTab(t.id)} className="press" style={{...chipStyle(tab===t.id,DT.accent,"#fff"),justifyContent:"center",padding:"0 6px",gap:5,minWidth:0}}>
+              <Icon name={t.icon} size={15}/>{t.label}
+            </button>
+          ))}
         </div>
-      </div>
-      <div style={{padding:"20px 14px"}}>
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// security.managerPin</div>
-        <div style={{background:DT.cardBg,border:`1px solid ${managerDisabled?"#ff446644":DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24,transition:"border-color 0.3s"}}>
+      </PageHeader>
+      <div style={{padding:"16px 14px"}}>
+        {tab==="settings"&&<div key="settings" style={{animation:"fadeUp .3s var(--ease-out)"}}>
+        <div style={{background:DT.cardBg,border:`1px solid ${managerDisabled?"#e5484d44":DT.cardBorder}`,borderRadius:16,padding:16,boxShadow:"var(--shadow)",marginBottom:14,transition:"border-color 0.3s"}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-            <div style={{fontSize:14,fontWeight:700,color:DT.text}}>Manager PIN</div>
-            <span style={{fontSize:10,padding:"3px 8px",background:managerDisabled?`${DT.red}15`:`${DT.green}15`,color:managerDisabled?DT.red:DT.green,border:`1px solid ${managerDisabled?DT.red+"44":DT.green+"44"}`,borderRadius:4,letterSpacing:"0.06em"}}>{managerDisabled?"DISABLED":"ACTIVE"}</span>
+            <div style={{...DEV_TITLE,marginBottom:0}}>Manager access</div>
+            <span style={{fontSize:10,padding:"3px 8px",background:managerDisabled?`${DT.red}15`:`${DT.green}15`,color:managerDisabled?DT.red:DT.green,border:`1px solid ${managerDisabled?DT.red+"44":DT.green+"44"}`,borderRadius:4}}>{managerDisabled?"DISABLED":"ACTIVE"}</span>
           </div>
-          {managerDisabled&&<div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#ff446610",border:"1px solid #ff446630",borderRadius:6,letterSpacing:"0.05em"}}>// WARNING: Manager permissions currently DISABLED</div>}
+          {managerDisabled&&<div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#e5484d10",border:"1px solid #e5484d30",borderRadius:10}}>Manager sign-in is turned off right now.</div>}
 
           {/* Confirm modal */}
           {confirmDisable&&(
-            <div style={{background:"#1a0a0a",border:"1px solid #ff446644",borderRadius:8,padding:14,marginBottom:10,animation:"popIn 0.2s ease"}}>
-              <div style={{fontSize:12,color:DT.red,fontWeight:700,marginBottom:6,letterSpacing:"0.06em"}}>// CONFIRM: DISABLE_MANAGERS?</div>
+            <div style={{background:"var(--danger-soft)",border:"1px solid #e5484d44",borderRadius:8,padding:14,marginBottom:10,animation:"popIn 0.2s ease"}}>
+              <div style={{fontSize:12,color:DT.red,fontWeight:700,marginBottom:6}}>Turn off manager access?</div>
               <div style={{fontSize:11,color:DT.subText,marginBottom:10,lineHeight:1.5}}>
                 This will immediately block all manager PIN logins. You can re-enable at any time from this page, or via the Supabase SQL editor:<br/>
                 <span style={{color:DT.accent,fontFamily:"var(--mono)",fontSize:10}}>update app_settings set value='false' where key='manager_disabled';</span>
               </div>
               <div style={{display:"flex",gap:8}}>
-                <button onClick={()=>setConfirmDisable(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"var(--mono)"}}>CANCEL</button>
-                <button onClick={async()=>{setConfirmDisable(false);await toggleManagerDisabled();}} style={{flex:2,padding:"8px",background:"#ff446618",border:"1px solid #ff446644",borderRadius:6,color:DT.red,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.06em"}}>⊘ CONFIRM_DISABLE →</button>
+                <button onClick={()=>setConfirmDisable(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:10,color:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+                <button onClick={async()=>{setConfirmDisable(false);await toggleManagerDisabled();}} style={{flex:2,padding:"8px",background:"#e5484d18",border:"1px solid #e5484d44",borderRadius:10,color:DT.red,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>⊘ CONFIRM_DISABLE →</button>
               </div>
             </div>
           )}
 
           <button onClick={()=>managerDisabled?toggleManagerDisabled():setConfirmDisable(true)}
-            style={{width:"100%",padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",marginBottom:10,transition:"all 0.3s"}}>
-            {managerDisabled?"✓ ENABLE_MANAGERS →":"⊘ DISABLE_MANAGERS →"}
+            style={{width:"100%",padding:"10px",background:managerDisabled?`${DT.green}15`:"#e5484d15",border:`1px solid ${managerDisabled?DT.green+"44":"#e5484d44"}`,borderRadius:10,color:managerDisabled?DT.green:DT.red,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:10,transition:"all 0.3s"}}>
+            {managerDisabled?"Turn manager access back on":"Turn off manager access"}
           </button>
-          <button style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>CHANGE_PIN →</button>
         </div>
-        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.taxRate</div>
-        <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
+        <div style={DEV_CARD}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
-            <div style={{fontSize:14,fontWeight:700,color:DT.text}}>Sales Tax Rate</div>
+            <div style={{...DEV_TITLE,marginBottom:0}}>Sales tax rate</div>
             <span style={{fontSize:16,fontWeight:700,color:DT.accent}}>{(taxRate*100).toFixed(2)}%</span>
           </div>
-          <div style={{fontSize:11,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>// affects Cash Tools tax calculator</div>
+          <div style={{fontSize:12.5,color:DT.subText,marginBottom:10}}>Used for taxed items and the Cash Tools calculator.</div>
           <div style={{display:"flex",gap:8,marginBottom:8}}>
             <input type="number" min="0" max="100" step="0.01" value={taxRateInput}
               onChange={e=>{setTaxRateInput(e.target.value);setTaxRateSaved(false);}}
-              style={{flex:1,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:14,fontFamily:"var(--mono)",boxSizing:"border-box"}}/>
+              style={{flex:1,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"9px 12px",color:DT.text,fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}}/>
             <span style={{display:"flex",alignItems:"center",fontSize:14,color:DT.subText,paddingRight:4}}>%</span>
           </div>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>{setTaxRateInput(String((DEFAULT_TAX_RATE*100).toFixed(2)));setTaxRateSaved(false);}}
-              style={{flex:1,padding:"9px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>
-              RESET_DEFAULT →
+              style={{flex:1,padding:"9px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:10,color:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              Reset
             </button>
             <button onClick={handleTaxSave}
-              style={{flex:2,padding:"9px",background:taxRateSaved?`${DT.green}20`:`${DT.accent}15`,border:`1px solid ${taxRateSaved?DT.green:DT.accent}44`,borderRadius:6,color:taxRateSaved?DT.green:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",transition:"all 0.2s"}}>
-              {taxRateSaved?"✓ SAVED":"SAVE_RATE →"}
+              style={{flex:2,padding:"9px",background:taxRateSaved?`${DT.green}20`:`${DT.accent}15`,border:`1px solid ${taxRateSaved?DT.green:DT.accent}44`,borderRadius:10,color:taxRateSaved?DT.green:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>
+              {taxRateSaved?"Saved":"Save rate"}
             </button>
           </div>
         </div>
-        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
-        <DevTaxBulk items={items} setItems={setItems} taxRate={taxRate}/>
-        <DevNewspaperMerge items={items} setItems={setItems}/>
-        <DevDataTools items={items} setItems={setItems}/>
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// store.builder</div>
-        <div style={{background:DT.cardBg,border:`1px solid ${showBuilder?DT.accent+"55":DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:showBuilder?12:24,transition:"border-color 0.3s"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-            <div style={{fontSize:14,fontWeight:700,color:DT.text}}>3D Store Builder</div>
-            <span style={{fontSize:10,padding:"3px 8px",background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}44`,borderRadius:4,letterSpacing:"0.06em"}}>DEV ONLY</span>
-          </div>
-          <div style={{fontSize:11,color:DT.subText,marginBottom:12,letterSpacing:"0.04em"}}>// live map: {layout.size.w}×{layout.size.d} ft · {layout.zones.length} fixtures · {layout.walls.length} walls</div>
-          <button onClick={()=>setShowBuilder(v=>!v)}
-            style={{width:"100%",padding:"10px",background:showBuilder?"transparent":`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>
-            {showBuilder?"✕ CLOSE_BUILDER":"OPEN_BUILDER →"}
-          </button>
-        </div>
-        {showBuilder&&<StoreBuilderPanel layout={layout} onSave={onLayoutSave}/>}
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.storeHours</div>
-        <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
-          <div style={{fontSize:11,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>// shown on the schedule page</div>
+        <div style={DEV_CARD}>
+          <div style={DEV_TITLE}>Store hours</div>
+          <div style={DEV_DESC}>Shown on the schedule page.</div>
           {(storeHours||DEFAULT_HOURS).map((row,i)=>(
             <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
               <input value={row.days} onChange={e=>{const h=[...(storeHours||DEFAULT_HOURS)];h[i]={...h[i],days:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
-                style={{flex:"0 0 74px",width:74,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 8px",color:DT.text,fontSize:12,fontFamily:"var(--mono)"}}/>
+                style={{flex:"0 0 74px",width:74,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"7px 8px",color:DT.text,fontSize:12,fontFamily:"inherit"}}/>
               <input value={row.hours} onChange={e=>{const h=[...(storeHours||DEFAULT_HOURS)];h[i]={...h[i],hours:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
-                style={{flex:1,minWidth:0,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 8px",color:DT.text,fontSize:12,fontFamily:"var(--mono)"}}/>
+                style={{flex:1,minWidth:0,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"7px 8px",color:DT.text,fontSize:12,fontFamily:"inherit"}}/>
               <button onClick={()=>{const h=(storeHours||DEFAULT_HOURS).filter((_,j)=>j!==i);onStoreHoursChange&&onStoreHoursChange(h);}}
-                style={{background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:6,width:28,height:28,flexShrink:0,color:DT.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+                style={{background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:10,width:28,height:28,flexShrink:0,color:DT.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
             </div>
           ))}
           <button onClick={()=>onStoreHoursChange&&onStoreHoursChange([...(storeHours||DEFAULT_HOURS),{days:"",hours:""}])}
-            style={{width:"100%",padding:"8px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.06em",marginTop:4}}>
-            + ADD_ROW →
+            style={{width:"100%",padding:"8px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginTop:4}}>
+            Add row
           </button>
         </div>
         <DevShiftPresets list={presetList} onChange={l=>onPresetListChange&&onPresetListChange(l)} storeHours={storeHours}/>
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.known [{knownBugs.length}]</div>
-        <button onClick={()=>setShowAddBug(v=>!v)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em",marginBottom:12}}>{showAddBug?"✕ CANCEL":"+ ADD_KNOWN_BUG →"}</button>
-        {showAddBug&&(
-          <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:14}}>
-            <input style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}} placeholder="Bug title" value={bugForm.title} onChange={e=>setBugForm(f=>({...f,title:e.target.value}))}/>
-            <textarea style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:70,resize:"none",lineHeight:1.5,marginBottom:10}} placeholder="Description" value={bugForm.description} onChange={e=>setBugForm(f=>({...f,description:e.target.value}))}/>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-              {SEVERITY_LEVELS.map(s=>{const c={Low:"#00ff88",Medium:"#f0c040",High:"#e67e22",Critical:"#ff4466"}[s];return <button key={s} onClick={()=>setBugForm(f=>({...f,severity:s}))} style={{padding:"5px 10px",borderRadius:4,border:`1px solid ${bugForm.severity===s?c:DT.cardBorder}`,background:bugForm.severity===s?`${c}20`:"transparent",color:bugForm.severity===s?c:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{s.toUpperCase()}</button>;})}
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button onClick={()=>setShowAddBug(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>CANCEL</button>
-              <button onClick={async()=>{if(!bugForm.title||!bugForm.description)return;const{data}=await sb.from("known_bugs").insert({title:bugForm.title,description:bugForm.description,severity:bugForm.severity,status:bugForm.status,created_at:new Date().toISOString()}).select().single();if(data)setKnownBugs(prev=>[data,...prev]);setBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBug(false);}} style={{flex:2,padding:"8px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>PUSH_BUG →</button>
-            </div>
-          </div>
-        )}
-        {knownBugs.length===0&&<div style={{fontSize:12,color:DT.subText,padding:"8px 0 20px",letterSpacing:"0.08em"}}>// array empty</div>}
-        {knownBugs.map(bug=><BugCard key={bug.id} bug={bug} T={{card:DT.cardBg,border:DT.cardBorder,text:DT.text,sub:DT.subText}} canDelete onDelete={async()=>{await sb.from("known_bugs").delete().eq("id",bug.id);setKnownBugs(prev=>prev.filter(b=>b.id!==bug.id));}}/>)}
-
-        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.reports [{reports.length}]</div>
-        {reports.length===0&&<div style={{fontSize:12,color:DT.subText,padding:"8px 0 20px",letterSpacing:"0.08em"}}>// array empty</div>}
-        {reports.map(r=><BugCard key={r.id} bug={r} T={{card:DT.cardBg,border:DT.cardBorder,text:DT.text,sub:DT.subText}} canDelete onDelete={async()=>{await sb.from("bug_reports").delete().eq("id",r.id);setReports(prev=>prev.filter(b=>b.id!==r.id));}}/>)}
-
-        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
-
-        {/* Audit log */}
-        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
-
         {/* ── Notifications ── */}
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// system.notification</div>
+        <section style={DEV_CARD}>
+        <div style={DEV_TITLE}>Notification banner</div>
+        <div style={DEV_DESC}>A message shown across the top of the app for everyone.</div>
 
         {/* Active notification */}
         {activeNotif?(
@@ -2108,34 +2155,34 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
               <div style={{width:8,height:8,borderRadius:"50%",background:NOTIF_COLORS[activeNotif.color]?.dot||DT.accent,boxShadow:`0 0 6px ${NOTIF_COLORS[activeNotif.color]?.dot||DT.accent}`}}/>
               <span style={{fontSize:12,fontWeight:600,color:NOTIF_COLORS[activeNotif.color]?.text||DT.text,flex:1}}>{activeNotif.message}</span>
             </div>
-            <div style={{fontSize:10,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>
-              {activeNotif.expiresAt?`// expires: ${new Date(activeNotif.expiresAt).toLocaleTimeString()}`:"// permanent — no expiry set"}
+            <div style={{fontSize:10,color:DT.subText,marginBottom:10}}>
+              {activeNotif.expiresAt?`Ends at ${new Date(activeNotif.expiresAt).toLocaleTimeString()}`:"Stays up until removed"}
             </div>
             <button onClick={()=>{onNotifChange&&onNotifChange(null);saveActiveNotif(null);}}
-              style={{width:"100%",padding:"8px",background:"#ff446615",border:"1px solid #ff446644",borderRadius:6,color:DT.red,fontSize:11,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.06em"}}>
-              ⊘ DISMISS_NOTIFICATION →
+              style={{width:"100%",padding:"8px",background:"#e5484d15",border:"1px solid #e5484d44",borderRadius:10,color:DT.red,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+              Remove banner
             </button>
           </div>
         ):(
-          <div style={{fontSize:12,color:DT.subText,padding:"6px 0 10px",letterSpacing:"0.06em"}}>// no active notification</div>
+          <div style={{fontSize:12,color:DT.subText,padding:"6px 0 10px"}}>No banner showing</div>
         )}
 
         {/* New notification form */}
         <button onClick={()=>setShowNotifForm(v=>!v)}
-          style={{width:"100%",padding:"9px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.08em",marginBottom:showNotifForm?10:20}}>
-          {showNotifForm?"✕ CANCEL":"+ NEW_NOTIFICATION →"}
+          style={{width:"100%",padding:"9px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:showNotifForm?10:20}}>
+          {showNotifForm?"Cancel":"New banner"}
         </button>
 
         {showNotifForm&&(
           <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:20,animation:"slideDown 0.2s ease"}}>
             {/* Message */}
-            <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",marginBottom:5}}>// message</div>
+            <div style={{fontSize:10,color:DT.subText,marginBottom:5}}>message</div>
             <input value={notifMsg} onChange={e=>setNotifMsg(e.target.value)}
               placeholder="e.g. Inventory check in progress..."
-              style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"var(--mono)",boxSizing:"border-box",marginBottom:12}}/>
+              style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12}}/>
 
             {/* Color picker */}
-            <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",marginBottom:8}}>// color</div>
+            <div style={{fontSize:10,color:DT.subText,marginBottom:8}}>color</div>
             <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
               {Object.entries(NOTIF_COLORS).map(([key,col])=>(
                 <button key={key} onClick={()=>setNotifColor(key)}
@@ -2145,17 +2192,17 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
             </div>
 
             {/* Duration */}
-            <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",marginBottom:5}}>// duration (minutes — leave blank for permanent)</div>
+            <div style={{fontSize:10,color:DT.subText,marginBottom:5}}>duration (minutes — leave blank for permanent)</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
               {[{label:"15m",val:"15"},{label:"30m",val:"30"},{label:"1h",val:"60"},{label:"2h",val:"120"},{label:"4h",val:"240"},{label:"∞",val:""}].map(opt=>(
                 <button key={opt.val} onClick={()=>setNotifDuration(opt.val)}
-                  style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${notifDuration===opt.val?DT.accent:DT.cardBorder}`,background:notifDuration===opt.val?`${DT.accent}20`:"transparent",color:notifDuration===opt.val?DT.accent:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"var(--mono)",transition:"all 0.15s"}}>
+                  style={{padding:"5px 10px",borderRadius:10,border:`1px solid ${notifDuration===opt.val?DT.accent:DT.cardBorder}`,background:notifDuration===opt.val?`${DT.accent}20`:"transparent",color:notifDuration===opt.val?DT.accent:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
                   {opt.label}
                 </button>
               ))}
               <input value={notifDuration} onChange={e=>setNotifDuration(e.target.value)}
                 placeholder="custom"
-                style={{width:60,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"5px 8px",color:DT.text,fontSize:11,fontFamily:"var(--mono)",textAlign:"center"}}/>
+                style={{width:60,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"5px 8px",color:DT.text,fontSize:11,fontFamily:"inherit",textAlign:"center"}}/>
               <span style={{display:"flex",alignItems:"center",fontSize:11,color:DT.subText}}>min</span>
             </div>
 
@@ -2164,7 +2211,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
               <div style={{background:NOTIF_COLORS[notifColor]?.bg||"#0d2540",border:`1px solid ${NOTIF_COLORS[notifColor]?.border||DT.cardBorder}`,borderRadius:8,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
                 <div style={{width:7,height:7,borderRadius:"50%",background:NOTIF_COLORS[notifColor]?.dot||DT.accent,flexShrink:0}}/>
                 <span style={{fontSize:12,color:NOTIF_COLORS[notifColor]?.text||DT.text,flex:1}}>{notifMsg}</span>
-                {notifDuration&&<span style={{fontSize:10,color:NOTIF_COLORS[notifColor]?.text||DT.text,opacity:0.6,fontFamily:"var(--mono)"}}>{notifDuration}m</span>}
+                {notifDuration&&<span style={{fontSize:10,color:NOTIF_COLORS[notifColor]?.text||DT.text,opacity:0.6,fontFamily:"inherit"}}>{notifDuration}m</span>}
               </div>
             )}
 
@@ -2176,18 +2223,22 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
               onNotifChange&&onNotifChange(n);
               saveActiveNotif(n);
               setNotifMsg("");setShowNotifForm(false);
-            }} style={{width:"100%",padding:"9px",background:`${DT.accent}20`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.08em"}}>
-              BROADCAST_NOTIFICATION →
+            }} style={{width:"100%",padding:"9px",background:`${DT.accent}20`,border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+              Show banner
             </button>
           </div>
         )}
 
-        <div style={{height:1,background:DT.cardBorder,margin:"0 0 20px"}}/>
 
-        {/* Audit log */}
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// audit.log [last {auditLog.length}/10]</div>
+        </section>
+        </div>}
+        {tab==="items"&&<div key="items" style={{animation:"fadeUp .3s var(--ease-out)"}}>
+        <DevTaxBulk items={items} setItems={setItems} taxRate={taxRate}/>
+        <DevNewspaperMerge items={items} setItems={setItems}/>
+        <DevDataTools items={items} setItems={setItems}/>
+        <div style={DEV_H}>Recent edits <span style={{color:"var(--faint)",fontWeight:500}}>· last {auditLog.length} of 10</span></div>
         {auditLog.length===0?(
-          <div style={{fontSize:12,color:DT.subText,padding:"8px 0",letterSpacing:"0.08em"}}>// array empty — no edits recorded this session</div>
+          <div style={{fontSize:12,color:DT.subText,padding:"8px 0"}}>No edits yet this session</div>
         ):(
           auditLog.map((entry,i)=>{
             const actionColor=entry.action==="added"?DT.green:entry.action==="deleted"?DT.red:"#f0c040";
@@ -2198,17 +2249,17 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
               <div key={entry.id} style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:8,padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${actionColor}`}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:11,fontWeight:700,color:actionColor,letterSpacing:"0.08em",textTransform:"uppercase"}}>{entry.action==="added"?"+ ADDED":entry.action==="deleted"?"✕ DELETED":"~ EDITED"}</span>
+                    <span style={{fontSize:11,fontWeight:700,color:actionColor,textTransform:"uppercase"}}>{entry.action==="added"?"Added":entry.action==="deleted"?"Deleted":"Edited"}</span>
                     {entry.role&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:`${DT.accent}15`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.role}</span>}
                   </div>
-                  <span style={{fontSize:10,color:DT.subText,fontFamily:"var(--mono)"}}>{timeStr}</span>
+                  <span style={{fontSize:10,color:DT.subText,fontFamily:"inherit"}}>{timeStr}</span>
                 </div>
                 <div style={{fontSize:13,color:DT.text,fontWeight:600,marginBottom:3}}>{entry.itemName}</div>
                 <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`}}>{entry.category}</span>
-                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.subcategory}</span>
-                  {entry.details&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.details}</span>}
-                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#f0c04015",color:"#f0c040",border:"1px solid #f0c04030"}}>${entry.price?.toFixed(2)}</span>
+                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`}}>{entry.category}</span>
+                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.subcategory}</span>
+                  {entry.details&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.details}</span>}
+                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:"#f0c04015",color:"#f0c040",border:"1px solid #f0c04030"}}>${entry.price?.toFixed(2)}</span>
                 </div>
                 {canUndo&&(
                   <button onClick={async()=>{
@@ -2216,19 +2267,59 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
                     const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,taxable:s.taxable||false,gillies_recommendation:s.gilliesRecommendation||false};
                     const {error}=await sb.from("items").update(row).eq("id",s.id);
                     if(!error){setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));}
-                  }} style={{marginTop:6,width:"100%",padding:"5px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:5,color:"#f0c040",fontSize:10,cursor:"pointer",fontFamily:"var(--mono)",letterSpacing:"0.06em",textAlign:"center"}}>
-                    ↩ UNDO EDIT
+                  }} style={{marginTop:6,width:"100%",padding:"5px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:10,color:"#f0c040",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
+                    Undo this edit
                   </button>
                 )}
               </div>
             );
           })
         )}
+        </div>}
+        {tab==="map"&&<div key="map" style={{animation:"fadeUp .3s var(--ease-out)"}}>
+        <div style={{background:DT.cardBg,border:`1px solid ${showBuilder?DT.accent+"55":DT.cardBorder}`,borderRadius:16,padding:16,boxShadow:"var(--shadow)",marginBottom:showBuilder?12:14,transition:"border-color 0.3s"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+            <div style={{...DEV_TITLE,marginBottom:0}}>3D store builder</div>
+            <span style={{fontSize:10,padding:"3px 8px",background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}44`,borderRadius:4}}>Dev only</span>
+          </div>
+          <div style={{fontSize:12.5,color:DT.subText,marginBottom:12}}>Live map: {layout.size.w}×{layout.size.d} ft · {layout.zones.length} fixtures · {layout.walls.length} walls</div>
+          <button onClick={()=>setShowBuilder(v=>!v)}
+            style={{width:"100%",padding:"10px",background:showBuilder?"transparent":`${DT.accent}15`,border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
+            {showBuilder?"Close builder":"Open builder"}
+          </button>
+        </div>
+        {showBuilder&&<StoreBuilderPanel layout={layout} onSave={onLayoutSave}/>}
+        </div>}
+        {tab==="bugs"&&<div key="bugs" style={{animation:"fadeUp .3s var(--ease-out)"}}>
+        <div style={DEV_H}>Known bugs <span style={{color:"var(--faint)",fontWeight:500}}>· {knownBugs.length}</span></div>
+        <button onClick={()=>setShowAddBug(v=>!v)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:12}}>{showAddBug?"Cancel":"Add a known bug"}</button>
+        {showAddBug&&(
+          <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:14}}>
+            <input style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}} placeholder="Bug title" value={bugForm.title} onChange={e=>setBugForm(f=>({...f,title:e.target.value}))}/>
+            <textarea style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:70,resize:"none",lineHeight:1.5,marginBottom:10}} placeholder="Description" value={bugForm.description} onChange={e=>setBugForm(f=>({...f,description:e.target.value}))}/>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+              {SEVERITY_LEVELS.map(s=>{const c={Low:"#16a34a",Medium:"#f0c040",High:"#e67e22",Critical:"#e5484d"}[s];return <button key={s} onClick={()=>setBugForm(f=>({...f,severity:s}))} style={{padding:"5px 10px",borderRadius:8,border:`1px solid ${bugForm.severity===s?c:DT.cardBorder}`,background:bugForm.severity===s?`${c}20`:"transparent",color:bugForm.severity===s?c:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{s.toUpperCase()}</button>;})}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowAddBug(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:10,color:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button onClick={async()=>{if(!bugForm.title||!bugForm.description)return;const{data}=await sb.from("known_bugs").insert({title:bugForm.title,description:bugForm.description,severity:bugForm.severity,status:bugForm.status,created_at:new Date().toISOString()}).select().single();if(data)setKnownBugs(prev=>[data,...prev]);setBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBug(false);}} style={{flex:2,padding:"8px",background:DT.accent,border:"none",borderRadius:10,color:DT.accentText,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>PUSH_BUG →</button>
+            </div>
+          </div>
+        )}
+        {knownBugs.length===0&&<div style={{fontSize:12,color:DT.subText,padding:"8px 0 20px"}}>None yet</div>}
+        {knownBugs.map(bug=><BugCard key={bug.id} bug={bug} T={{card:DT.cardBg,border:DT.cardBorder,text:DT.text,sub:DT.subText}} canDelete onDelete={async()=>{await sb.from("known_bugs").delete().eq("id",bug.id);setKnownBugs(prev=>prev.filter(b=>b.id!==bug.id));}}/>)}
+
+        <div style={{...DEV_H,marginTop:22}}>Bug reports <span style={{color:"var(--faint)",fontWeight:500}}>· {reports.length}</span></div>
+        {reports.length===0&&<div style={{fontSize:12,color:DT.subText,padding:"8px 0 20px"}}>None yet</div>}
+        {reports.map(r=><BugCard key={r.id} bug={r} T={{card:DT.cardBg,border:DT.cardBorder,text:DT.text,sub:DT.subText}} canDelete onDelete={async()=>{await sb.from("bug_reports").delete().eq("id",r.id);setReports(prev=>prev.filter(b=>b.id!==r.id));}}/>)}
+
+
+
+        </div>}
       </div>
     </div>
   );
 }
-
 // ── SchedulePage ──────────────────────────────────────────────────────────────
 const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAY_NAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -2678,7 +2769,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS,preset
                   <button aria-label="Edit shift" onClick={()=>{setEditShift(idx);setShiftForm({name:canon(x.name),startTime:x.startTime,endTime:x.endTime,notes:x.notes||""});setAddingName(false);setShowShiftForm(true);window.scrollTo({top:0,behavior:"smooth"});}} className="press" style={{...ACTION_BTN(),width:40,height:40,minHeight:40,padding:0,flexShrink:0}}><Icon name="edit" size={17}/></button>
                   <button aria-label="Delete shift" onClick={()=>deleteShift(focusDay,idx)} className="press" style={{...ACTION_BTN("var(--danger)","var(--danger-soft)"),width:40,height:40,minHeight:40,padding:0,flexShrink:0}}><Icon name="trash" size={17}/></button>
                 </div>
-                {x.notes&&<div style={{fontSize:12,color:sub,padding:"6px 10px",marginTop:8,background:"var(--surface-2)",borderRadius:7,lineHeight:1.4}}>📝 {x.notes}</div>}
+                {x.notes&&<div style={{fontSize:12,color:sub,padding:"6px 10px",marginTop:8,background:"var(--surface-2)",borderRadius:7,lineHeight:1.4}}>{x.notes}</div>}
               </div>
             );
           })}
@@ -3435,7 +3526,7 @@ function SuggestionsPage({isDark,isManager,isDev}){
             <button onClick={submit} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Submit Suggestion</button>
           </div>
         )}
-        {loading&&<div style={{textAlign:"center",color:sub,padding:40}}>Loading…</div>}
+        {loading&&<SkeletonCards n={4} h={96}/>}
         {!loading&&suggestions.length===0&&!showForm&&(
           <div style={{textAlign:"center",color:sub,padding:"50px 20px"}}>
             <span style={EMPTY_ICON}><Icon name="idea" size={26}/></span>
@@ -3526,7 +3617,7 @@ function UpdateLogPage({isDark,isDev}){
             <button onClick={addLog} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"var(--brand-ink)",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Post Update</button>
           </div>
         )}
-        {loading&&<div style={{textAlign:"center",color:sub,padding:40}}>Loading…</div>}
+        {loading&&<SkeletonCards n={4} h={96}/>}
         {!loading&&logs.length===0&&!showForm&&(
           <div style={{textAlign:"center",color:sub,padding:"50px 20px"}}>
             <span style={EMPTY_ICON}><Icon name="log" size={26}/></span>
@@ -3785,6 +3876,28 @@ export default function App(){
     setLayout(l);
   }
   function handlePageChange(p){setPage(p);if(p!=="pricing")setSelectedCategory(null);}
+  // Phone / browser Back moves through the app's own screens instead of leaving the site.
+  // Each screen change adds a history entry; switching category from the header replaces it,
+  // so Back from a category still lands on the home grid.
+  const navReplace=useRef(false);
+  useEffect(()=>{
+    const st={app:1,page,cat:selectedCategory?.key||null};
+    const cur=history.state, replace=navReplace.current; navReplace.current=false;
+    if(!cur||!cur.app){history.replaceState({...st,d:0},"");return;}
+    if(cur.page===st.page&&cur.cat===st.cat)return;
+    if(replace)history.replaceState({...st,d:cur.d||0},"");
+    else history.pushState({...st,d:(cur.d||0)+1},"");
+  },[page,selectedCategory?.key]);
+  useEffect(()=>{
+    const pop=e=>{
+      const st=e.state;if(!st||!st.app)return;
+      setPage(st.page);setScrollToItem(null);setShowMore(false);
+      setSelectedCategory(st.cat?(st.cat===RECS_CATEGORY.key?RECS_CATEGORY:CATEGORIES.find(c=>c.key===st.cat)||null):null);
+    };
+    window.addEventListener("popstate",pop);return()=>window.removeEventListener("popstate",pop);
+  },[]);
+  // in-app back arrow: same as the phone's Back when there's an app screen behind this one
+  function goBack(fallback){if(history.state?.app&&history.state.d>0)history.back();else fallback();}
 
   return(
     <LayoutCtx.Provider value={layout}><TaxCtx.Provider value={taxRate}>
@@ -3849,7 +3962,7 @@ export default function App(){
       <div ref={bannerRef} style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,zIndex:200}}>
         {managerDisabled&&!isDev&&(
           <div style={{background:"#e74c3c",padding:"8px 16px",display:"flex",alignItems:"center",gap:8,animation:"bannerSlide 0.3s var(--ease-out)"}}>
-            <span style={{fontSize:14}}>🔒</span>
+            <Icon name="lock" size={14} style={{color:"#fff"}}/>
             <span style={{fontSize:12,fontWeight:600,color:"#fff",flex:1}}>Manager permissions are temporarily disabled</span>
           </div>
         )}
@@ -3884,7 +3997,7 @@ export default function App(){
       <PageErrorBoundary key={page+"|"+(selectedCategory?.key||"")} isDark={isDark}>
       {page==="pricing"&&(
         selectedCategory
-          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
+          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>goBack(()=>{setSelectedCategory(null);setScrollToItem(null);})} onSwitchCategory={c=>{navReplace.current=true;setSelectedCategory(c);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
           :<HomeGrid items={items} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef} bannerOffset={bannerOffset} onDevUnlock={()=>setShowPinModal(true)}/>
       )}
       {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours} presetList={presetList} bannerOffset={bannerOffset}/>}
