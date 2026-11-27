@@ -406,7 +406,7 @@ const DEFAULT_LAYOUT={size:STORE_SIZE,zones:FLOOR_ZONES,walls:FLOOR_WALLS};
 const LayoutCtx=createContext(DEFAULT_LAYOUT);
 const loadStore3d=()=>import("./store3d.js"); // three.js only downloads when someone opens 3D
 
-function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly}){
+function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly,theme}){
   const ref=useRef(null),viewer=useRef(null),cb=useRef(onSelectZone),pinRef=useRef(pinZone);
   cb.current=onSelectZone;pinRef.current=pinZone;
   const [failed,setFailed]=useState(false);
@@ -414,118 +414,124 @@ function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly}){
     let dead=false;
     loadStore3d().then(m=>{
       if(dead||!ref.current)return;
-      viewer.current=m.mountViewer(ref.current,layout,{accent,onSelectZone:readonly?null:k=>cb.current&&cb.current(k)});
+      viewer.current=m.mountViewer(ref.current,layout,{accent,accentInk:inkFor(accent),theme,onSelectZone:readonly?null:k=>cb.current&&cb.current(k)});
       viewer.current.setPin(pinRef.current);
     }).catch(e=>{console.error(e);setFailed(true);});
     return()=>{dead=true;if(viewer.current){viewer.current.dispose();viewer.current=null;}};
-  },[layout,readonly,accent]);
+  },[layout,readonly,accent,theme]);
   useEffect(()=>{viewer.current&&viewer.current.setPin(pinZone);},[pinZone]);
   return(
-    <div ref={ref} style={{width:"100%",aspectRatio:`${layout.size.w} / ${layout.size.d}`,minHeight:240,position:"relative",background:"#06080d"}}>
-      {failed&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"rgba(255,255,255,0.45)",textAlign:"center",padding:16}}>The 3D map couldn't load. Switch back to 2D.</div>}
+    <div ref={ref} style={{width:"100%",aspectRatio:`${layout.size.w} / ${layout.size.d}`,minHeight:240,position:"relative",background:MAP_LOOK[theme].bg}}>
+      {failed&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"var(--muted)",textAlign:"center",padding:16}}>The 3D map couldn't load. Switch back to 2D.</div>}
     </div>
   );
 }
 
-// Same color treatment as the 3D map (store3d.js brighten), so 2D reads as a top-down view of 3D
+// Map palette per theme — keep in step with LOOK in store3d.js
+const MAP_LOOK={
+  dark:{bg:"#14171d",floor:"#1e222a",grid:"#262a32",wall:"#5d6573",fixL:0.31,stroke:"rgba(0,0,0,.35)",ink:"#c9ced6",halo:"#1e222a"},
+  light:{bg:"#e9e8e3",floor:"#f6f5f1",grid:"#ebe9e3",wall:"#a9a397",fixL:0.75,stroke:"rgba(60,50,30,.26)",ink:"#3f4247",halo:"#f6f5f1"},
+};
+// Follow the app's light/dark switch (it lives on <html data-theme>)
+function useDocTheme(){
+  const get=()=>document.documentElement.dataset.theme==="light"?"light":"dark";
+  const [t,setT]=useState(get);
+  useEffect(()=>{const mo=new MutationObserver(()=>setT(get()));mo.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});return()=>mo.disconnect();},[]);
+  return t;
+}
+// Fixture tint: the fixture's hue, very little saturation, at the theme's lightness
+function calmFill(hex,theme){
+  const n=parseInt((hex||"#808080").slice(1),16),r=(n>>16&255)/255,g=(n>>8&255)/255,b=(n&255)/255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b),d=mx-mn;
+  let h=0;if(d){h=mx===r?((g-b)/d+6)%6:mx===g?(b-r)/d+2:(r-g)/d+4;}
+  const sat=Math.min(theme==="light"?0.36:0.3,(d?d/(1-Math.abs(mx+mn-1)):0)*0.55);
+  return `hsl(${Math.round(h*60)} ${Math.round(sat*100)}% ${Math.round(MAP_LOOK[theme].fixL*100)}%)`;
+}
+// Dark or light text for a filled accent
+function inkFor(hex){const n=parseInt((hex||"#f2c14e").slice(1),16);return (0.299*(n>>16&255)+0.587*(n>>8&255)+0.114*(n&255))>150?"#15161a":"#ffffff";}
+// An item's pin may name a fixture by key or by its label (fixtures duplicated in the builder keep "…_copy" keys)
+const zoneSlug=s=>(s||"").toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_|_$/g,"");
+function findZone(zones,key){return key?(zones.find(z=>z.key===key)||zones.find(z=>z.label&&zoneSlug(z.label)===key)):null;}
+
 // Dates were once saved as "4/16/2026" text; new ones are ISO timestamps. Show both the same way.
 function fmtDate(v){
   if(!v)return"";
   const d=new Date(v);
   return isNaN(d)?String(v):d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
 }
-function guessKind(key){
-  if(/back_room/.test(key))return"floor";
-  if(/rack_sep|separator/.test(key))return"separator";
-  if(/cooler|beer_case|beer_wine/.test(key))return"cooler";
-  if(/ice_cream|freezer/.test(key))return"freezer";
-  return"shelf";
-}
-function fixtureColor(hex,kind){
-  const toLin=c=>c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4);
-  const toS=c=>c<=0.0031308?c*12.92:1.055*Math.pow(c,1/2.4)-0.055;
-  const n=parseInt((hex||"#1a2a14").slice(1),16);
-  let r=toLin((n>>16&255)/255),g=toLin((n>>8&255)/255),b=toLin((n&255)/255);
-  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,sat=0,l=(mx+mn)/2;
-  if(mx!==mn){const d=mx-mn;sat=l>0.5?d/(2-mx-mn):d/(mx+mn);
-    h=mx===r?(g-b)/d+(g<b?6:0):mx===g?(b-r)/d+2:(r-g)/d+4;h/=6;}
-  sat=Math.min(1,sat*1.25+0.05);l=Math.max(l*1.9,kind==="separator"?0.14:0.3);
-  const q=l<0.5?l*(1+sat):l+sat-l*sat,p=2*l-q;
-  const f=t=>{t=(t+1)%1;return t<1/6?p+(q-p)*6*t:t<1/2?q:t<2/3?p+(q-p)*(2/3-t)*6:p;};
-  const hx=v=>Math.round(Math.min(1,Math.max(0,toS(v)))*255).toString(16).padStart(2,"0");
-  return "#"+hx(f(h+1/3))+hx(f(h))+hx(f(h-1/3));
-}
 
 function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
   const layout=useContext(LayoutCtx);
+  const theme=useDocTheme(), L=MAP_LOOK[theme];
   const [hovered,setHovered]=useState(null);
   const [mode,setMode]=useState(()=>{try{return localStorage.getItem("floor-mode")||"2d";}catch{return "2d";}});
   function pickMode(m){setMode(m);try{localStorage.setItem("floor-mode",m);}catch{}}
+  const pinKey=findZone(layout.zones,pinZone)?.key||null;
+  const acc=accent||"#f2c14e";
   const W=540, H=Math.round(540*layout.size.d/layout.size.w);
-  function px(x){return x/100*W;}
-  function py(y){return y/100*H;}
-  function pw(w){return w/100*W;}
-  function ph(h){return h/100*H;}
+  const px=x=>x/100*W, py=y=>y/100*H, pw=w=>w/100*W, ph=h=>h/100*H;
   return(
-    <div data-no-swipe style={{position:"relative",width:"100%",borderRadius:10,overflow:"hidden",background:"#080808",border:"1px solid rgba(255,255,255,0.07)"}}>
-      <div onClick={e=>e.stopPropagation()} style={{position:"absolute",top:6,right:6,zIndex:3,display:"flex",background:"rgba(8,11,18,0.85)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:8,overflow:"hidden"}}>
+    <div data-no-swipe style={{position:"relative",width:"100%",borderRadius:14,overflow:"hidden",background:L.bg,border:"1px solid var(--border)"}}>
+      <div onClick={e=>e.stopPropagation()} role="tablist" aria-label="Map view" style={{position:"absolute",top:8,right:8,zIndex:3,display:"flex",padding:3,gap:2,borderRadius:10,
+        background:"var(--glass)",backdropFilter:"blur(10px)",WebkitBackdropFilter:"blur(10px)",border:"1px solid var(--border)",boxShadow:"var(--shadow)"}}>
         {["2d","3d"].map(m=>(
-          <button key={m} type="button" onClick={()=>pickMode(m)}
-            style={{padding:"4px 9px",fontSize:10,fontWeight:700,letterSpacing:"0.06em",border:"none",cursor:"pointer",fontFamily:"inherit",
-              background:mode===m?(accent||"#f0c040"):"transparent",color:mode===m?"var(--brand-ink)":"var(--muted)",transition:"background 0.2s"}}>
+          <button key={m} type="button" role="tab" aria-selected={mode===m} onClick={()=>pickMode(m)} className="press"
+            style={{padding:"4px 10px",fontSize:11.5,fontWeight:600,border:"none",borderRadius:7,cursor:"pointer",
+              background:mode===m?"var(--surface-3)":"transparent",color:mode===m?"var(--text)":"var(--muted)"}}>
             {m.toUpperCase()}
           </button>
         ))}
       </div>
-      {mode==="3d"?<FloorPlan3D layout={layout} pinZone={pinZone} onSelectZone={onSelectZone} accent={accent||"#f0c040"} readonly={readonly}/>:
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block",background:"#07090f"}}>
-        <defs><style>{`@keyframes floorFlash{0%{opacity:1}40%{opacity:0.35}100%{opacity:1}}`}</style></defs>
-        {/* Floor + 1 ft grid — same as the 3D floor */}
-        <rect x={0} y={0} width={W} height={H} fill="#2a2e36"/>
-        {Array.from({length:Math.floor(layout.size.w)},(_,i)=>i+1).map(i=><line key={"gx"+i} x1={i/layout.size.w*W} y1={0} x2={i/layout.size.w*W} y2={H} stroke="#363b46" strokeWidth={0.5}/>)}
-        {Array.from({length:Math.floor(layout.size.d)},(_,i)=>i+1).map(i=><line key={"gy"+i} x1={0} y1={i/layout.size.d*H} x2={W} y2={i/layout.size.d*H} stroke="#363b46" strokeWidth={0.5}/>)}
-        {/* Fixtures, flat areas first then shortest → tallest, like looking down on the 3D map */}
+      {mode==="3d"?<FloorPlan3D layout={layout} pinZone={pinKey} onSelectZone={onSelectZone} accent={acc} readonly={readonly} theme={theme}/>:
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block"}}>
+        <defs>
+          <style>{`@keyframes pinPulse{0%{opacity:.55;transform:scale(1)}100%{opacity:0;transform:scale(1.25)}}.pin-ring{transform-box:fill-box;transform-origin:center;animation:pinPulse 1.8s var(--ease-out) infinite}`}</style>
+          <pattern id="mapgrid" width={W/layout.size.w*2} height={H/layout.size.d*2} patternUnits="userSpaceOnUse">
+            <path d={`M ${W/layout.size.w*2} 0 L 0 0 0 ${H/layout.size.d*2}`} fill="none" stroke={L.grid} strokeWidth={1}/>
+          </pattern>
+        </defs>
+        <rect x={0} y={0} width={W} height={H} fill={L.floor}/>
+        <rect x={0} y={0} width={W} height={H} fill="url(#mapgrid)"/>
+        {/* Fixtures: flat areas first, then shortest → tallest; everything but the pinned one steps back */}
         {[...layout.zones].sort((a,b)=>(+a.height||0)-(+b.height||0)).map(zone=>{
-          const kind=zone.kind||guessKind(zone.key);
           const x=px(zone.x),y=py(zone.y),w=pw(zone.w),h=ph(zone.h);
-          const fill=fixtureColor(zone.color,kind);
-          if(!zone.tappable) return <rect key={zone.key} x={x} y={y} width={w} height={h} fill={fill} stroke="rgba(0,0,0,0.45)" strokeWidth={0.8}/>;
-          const isPin=pinZone===zone.key;
-          const isHov=hovered===zone.key;
-          const cx=x+w/2,cy=y+h/2;
+          const fill=calmFill(zone.color,theme);
+          const isPin=pinKey===zone.key, dim=pinKey&&!isPin;
+          if(!zone.tappable) return <rect key={zone.key} x={x} y={y} width={w} height={h} rx={1.5} fill={fill} stroke={L.stroke} strokeWidth={1} opacity={dim?0.6:1}/>;
+          const isHov=hovered===zone.key&&!readonly;
           return(
-            <g key={zone.key} onClick={()=>!readonly&&onSelectZone&&onSelectZone(zone.key)} onMouseEnter={()=>setHovered(zone.key)} onMouseLeave={()=>setHovered(null)} style={{cursor:readonly?"default":"pointer"}}>
-              <rect x={x} y={y} width={w} height={h} fill={fill} fillOpacity={isHov&&!readonly&&!isPin?0.82:1}
-                stroke={isPin?accent:"rgba(0,0,0,0.45)"} strokeWidth={isPin?2:0.8}/>
-              {isPin&&<rect x={x} y={y} width={w} height={h} fill={accent} fillOpacity={0.28} stroke={accent} strokeWidth={2} style={{animation:"floorFlash 0.35s ease"}} filter={`drop-shadow(0 0 5px ${accent})`}/>}
-
+            <g key={zone.key} onClick={()=>!readonly&&onSelectZone&&onSelectZone(zone.key)} onMouseEnter={()=>setHovered(zone.key)} onMouseLeave={()=>setHovered(null)}
+              style={{cursor:readonly?"default":"pointer",transition:"opacity .3s var(--ease)"}} opacity={dim?0.6:1}>
+              <rect x={x} y={y} width={w} height={h} rx={2} fill={isPin?acc:fill} stroke={isPin?acc:isHov?"var(--brand)":L.stroke} strokeWidth={isPin||isHov?2:1}/>
+              {isPin&&<rect className="pin-ring" x={x-3} y={y-3} width={w+6} height={h+6} rx={5} fill="none" stroke={acc} strokeWidth={2.5}/>}
             </g>
           );
         })}
-        {/* Walls — same red and thickness as the 3D walls */}
+        {/* Walls */}
         {layout.walls.map((wl,i)=>(
-          <line key={i} x1={px(wl.x1)} y1={py(wl.y1)} x2={px(wl.x2)} y2={py(wl.y2)} stroke="#b7413a" strokeWidth={Math.max(3,0.45/layout.size.w*W)} strokeLinecap="square" style={{pointerEvents:"none"}}/>
+          <line key={i} x1={px(wl.x1)} y1={py(wl.y1)} x2={px(wl.x2)} y2={py(wl.y2)} stroke={L.wall} strokeWidth={Math.max(3.5,0.45/layout.size.w*W)} strokeLinecap="round" style={{pointerEvents:"none"}}/>
         ))}
-        {/* Labels — one readable size, placed biggest-first so they never overlap; the pinned fixture always gets one */}
+        {/* Labels: plain text with a soft halo, biggest fixtures first, never overlapping; the pinned one gets a pill */}
         {(()=>{
           const placed=[],out=[];
           const cand=layout.zones.filter(z=>z.label&&z.tappable).map(z=>({z,x:px(z.x),y:py(z.y),w:pw(z.w),h:ph(z.h)}))
-            .sort((a,b)=>(b.z.key===pinZone)-(a.z.key===pinZone)||(b.w*b.h)-(a.w*a.h));
+            .sort((a,b)=>(b.z.key===pinKey)-(a.z.key===pinKey)||(b.w*b.h)-(a.w*a.h));
           for(const c of cand){
-            const pin=c.z.key===pinZone,fs=pin?15:12,lw=c.z.label.length*fs*0.56+fs*1.1,lh=fs*1.5;
+            const pin=c.z.key===pinKey,fs=pin?14:11.5,lw=c.z.label.length*fs*0.56+(pin?fs*1.6:fs*0.6),lh=fs*(pin?1.9:1.4);
             const vertical=!pin&&c.h>c.w*1.6&&lw>c.w+4;
             const bw=vertical?lh:lw,bh=vertical?lw:lh;
-            const cx=c.x+c.w/2,cy=pin&&c.h<lh*1.2?c.y-lh*0.7:c.y+c.h/2;
+            const cx=c.x+c.w/2,cy=pin&&c.h<lh*1.2?c.y-lh*0.75:c.y+c.h/2;
             const box={x:Math.max(1,Math.min(W-bw-1,cx-bw/2)),y:Math.max(1,Math.min(H-bh-1,cy-bh/2)),w:bw,h:bh};
             const fitsOwn=pin||(vertical?c.h>=lw*0.85:c.w>=lw*0.85||c.h>=lh*2.2);
             if(!fitsOwn||placed.some(p=>box.x<p.x+p.w&&box.x+box.w>p.x&&box.y<p.y+p.h&&box.y+box.h>p.y))continue;
             placed.push(box);
             const tx=box.x+bw/2,ty=box.y+bh/2;
             out.push(
-              <g key={"lbl"+c.z.key} transform={vertical?`rotate(-90 ${tx} ${ty})`:undefined} style={{pointerEvents:"none",userSelect:"none"}}>
-                <rect x={tx-lw/2} y={ty-lh/2} width={lw} height={lh} rx={lh/2} fill={pin?accent:"rgba(8,11,18,0.86)"}/>
-                <text x={tx} y={ty+fs*0.05} textAnchor="middle" dominantBaseline="middle" fontSize={fs} fontWeight={700}
-                  fill={pin?"#141005":"#eef1f6"} fontFamily="Inter,system-ui,sans-serif">{c.z.label}</text>
+              <g key={"lbl"+c.z.key} transform={vertical?`rotate(-90 ${tx} ${ty})`:undefined} style={{pointerEvents:"none",userSelect:"none"}} opacity={pinKey&&!pin?0.75:1}>
+                {pin&&<rect x={tx-lw/2} y={ty-lh/2} width={lw} height={lh} rx={lh/2} fill={acc} filter="drop-shadow(0 2px 4px rgba(0,0,0,.25))"/>}
+                <text x={tx} y={ty+fs*0.05} textAnchor="middle" dominantBaseline="middle" fontSize={fs} fontWeight={pin?700:600}
+                  fill={pin?inkFor(acc):L.ink} stroke={pin?"none":L.halo} strokeWidth={pin?0:3} paintOrder="stroke" strokeLinejoin="round"
+                  fontFamily="Inter,system-ui,sans-serif">{c.z.label}</text>
               </g>
             );
           }
@@ -570,7 +576,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
   const todayPrice=priceOn(item), total=todayPrice+(item.deposit||0);
   const hasInventory=item.inventory!=null;
   const isLowStock=hasInventory&&item.inventory>0&&item.inventory<=5;
-  const zoneName=layout.zones.find(z=>z.key===item.mapZone)?.label||item.mapZone;
+  const zoneName=findZone(layout.zones,item.mapZone)?.label||item.location||item.mapZone;
   return(
     <>
     {/* Fullscreen map takeover */}

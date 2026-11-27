@@ -70,9 +70,25 @@ UNIT.userData.shared = UNIT_EDGES.userData.shared = CYL.userData.shared = true;
 const FLOOR_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const WALL_H = 9, WALL_T = 0.45, WALL_LOW = 0.7;
 
-function brighten(hex, minL = 0.3) {
+// Calm, theme-matched colors for the map (same values the 2D map uses in App.jsx MAP_LOOK)
+export const LOOK = {
+  dark: { bg: "#14171d", floor: "#1e222a", grid: "#2a2f38", wall: "#535b67", body: "#4a515c", base: "#2b3038", metal: "#8d949e",
+          fixL: 0.42, labelBg: "rgba(24,27,34,.9)", labelInk: "#e8eaee", labelLine: "rgba(255,255,255,.08)", hemi: [1.7, "#dfe6f5", "#2a2722"], sun: 2.1 },
+  light: { bg: "#e9e8e3", floor: "#f6f5f1", grid: "#e4e2dc", wall: "#c9c4ba", body: "#a7acb4", base: "#7d838c", metal: "#b9bec6",
+          fixL: 0.66, labelBg: "rgba(255,255,255,.94)", labelInk: "#1c1d20", labelLine: "rgba(0,0,0,.08)", hemi: [2.0, "#ffffff", "#bdb6a8"], sun: 2.3 },
+};
+let look = LOOK.dark;
+// fixture body tint: keep the hue, drop most of the saturation, sit at the theme's lightness
+function calm(hex, L = look.fixL) {
   const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl);
-  return new THREE.Color().setHSL(hsl.h, Math.min(1, hsl.s * 1.25 + 0.05), Math.max(hsl.l * 1.9, minL));
+  return new THREE.Color().setHSL(hsl.h, Math.min(0.32, hsl.s * 0.55), L);
+}
+// products on shelves: softer and less saturated than the raw palette
+const SOFT = new Map();
+function soft(hex) {
+  let v = SOFT.get(hex);
+  if (!v) { const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl); v = new THREE.Color().setHSL(hsl.h, hsl.s * 0.55, 0.38 + hsl.l * 0.42); SOFT.set(hex, v); }
+  return v;
 }
 function disposeObj(o) {
   o.traverse(c => {
@@ -87,21 +103,24 @@ function clearWorld(world) {
 }
 const rootOf = o => { while (o && o.userData.kind === undefined && o.userData.key === undefined) o = o.parent; return o; };
 // listeners are attached before OrbitControls so a drag on a fixture can switch the camera off first
-function createStage(host, { listeners = {}, bg = "#04060c" } = {}) {
+function createStage(host, { listeners = {}, bg = look.bg } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
   const el = renderer.domElement;
   Object.assign(el.style, { display: "block", width: "100%", height: "100%", touchAction: "none" });
   host.prepend(el);
   const scene = new THREE.Scene(); scene.background = new THREE.Color(bg);
-  scene.fog = new THREE.Fog(bg, 90, 180);
-  const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 500);
-  scene.add(new THREE.HemisphereLight("#cfd8ff", "#1a1408", 2.2));
-  const sun = new THREE.DirectionalLight("#fff3dc", 2.6);
-  sun.position.set(-25, 45, 30); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  scene.fog = new THREE.Fog(bg, 70, 170);
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500);
+  scene.add(new THREE.HemisphereLight(look.hemi[1], look.hemi[2], look.hemi[0]));
+  const sun = new THREE.DirectionalLight("#fff6e8", look.sun);
+  sun.position.set(-22, 48, 26); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow, { bias: -0.0004, normalBias: 0.03, radius: 4 });
   Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 120 });
   scene.add(sun);
+  const fill = new THREE.DirectionalLight("#e8eeff", look.sun * 0.35); fill.position.set(30, 25, -20); scene.add(fill);
   const world = new THREE.Group(); scene.add(world);
   const ctx = e => e.preventDefault();
   for (const [k, f] of Object.entries(listeners)) el.addEventListener(k, f);
@@ -131,27 +150,30 @@ function aimCamera(stage, size, mode = "3d") {
   stage.controls.target.set(0, 0, 0); stage.controls.update();
 }
 function addFloor(world, size) {
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size.w, size.d), new THREE.MeshStandardMaterial({ color: "#2a2e36", roughness: 0.9 }));
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(size.w, size.d), new THREE.MeshStandardMaterial({ color: look.floor, roughness: 0.92 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; world.add(floor);
-  const n = Math.ceil(Math.max(size.w, size.d));
-  const grid = new THREE.GridHelper(n, n, "#4a5262", "#363b46");
-  grid.scale.set(size.w / n, 1, size.d / n); grid.position.y = 0.01; world.add(grid);
-  const outside = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: "#07090f", roughness: 1 }));
+  const n = Math.ceil(Math.max(size.w, size.d) / 2);
+  const grid = new THREE.GridHelper(n * 2, n, look.grid, look.grid);
+  grid.material.transparent = true; grid.material.opacity = 0.7;
+  grid.scale.set(size.w / (n * 2), 1, size.d / (n * 2)); grid.position.y = 0.01; world.add(grid);
+  const outside = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: look.bg, roughness: 1 }));
   outside.rotation.x = -Math.PI / 2; outside.position.y = -0.02; outside.receiveShadow = true; world.add(outside);
 }
-function makeLabel(text, on, visible = true, onColor = "#f0c040") {
-  const c = document.createElement("canvas"), ctx = c.getContext("2d"), fs = 44;
-  ctx.font = `600 ${fs}px Inter, system-ui, sans-serif`;
-  c.width = Math.ceil(ctx.measureText(text).width) + 36; c.height = fs + 28;
-  ctx.font = `600 ${fs}px Inter, system-ui, sans-serif`;
-  ctx.fillStyle = on ? onColor : "rgba(8,11,18,.82)";
-  const r = c.height / 2;
-  ctx.beginPath(); ctx.moveTo(r, 0); ctx.lineTo(c.width - r, 0); ctx.arc(c.width - r, r, r, -Math.PI / 2, Math.PI / 2);
-  ctx.lineTo(r, c.height); ctx.arc(r, r, r, Math.PI / 2, Math.PI * 1.5); ctx.fill();
-  ctx.fillStyle = on ? "#141005" : "#e8ecf4"; ctx.textBaseline = "middle"; ctx.fillText(text, 18, c.height / 2 + 2);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true }));
-  s.scale.set(1.15 * c.width / c.height, 1.15, 1); s.renderOrder = 10; s.visible = visible;
+function makeLabel(text, on, visible = true, onColor = "#f0c040", onInk = "#141005", screen = 0) {
+  const c = document.createElement("canvas"), ctx = c.getContext("2d"), fs = on ? 46 : 40, pad = on ? 26 : 20;
+  ctx.font = `${on ? 700 : 600} ${fs}px Inter, system-ui, sans-serif`;
+  c.width = Math.ceil(ctx.measureText(text).width) + pad * 2; c.height = fs + 26;
+  ctx.font = `${on ? 700 : 600} ${fs}px Inter, system-ui, sans-serif`;
+  const r = c.height / 2, pill = () => { ctx.beginPath(); ctx.moveTo(r, 1); ctx.lineTo(c.width - r, 1); ctx.arc(c.width - r, r, r - 1, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(r, c.height - 1); ctx.arc(r, r, r - 1, Math.PI / 2, Math.PI * 1.5); };
+  pill(); ctx.fillStyle = on ? onColor : look.labelBg; ctx.fill();
+  if (!on) { ctx.lineWidth = 2; ctx.strokeStyle = look.labelLine; ctx.stroke(); }
+  ctx.fillStyle = on ? onInk : look.labelInk; ctx.textBaseline = "middle"; ctx.fillText(text, pad, c.height / 2 + 2);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+  // screen > 0: keep the label this tall on screen whatever the zoom (sizeAttenuation off)
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, sizeAttenuation: !screen }));
+  const h = screen ? screen * (on ? 1.2 : 1) : on ? 1.25 : 0.95;
+  s.scale.set(h * c.width / c.height, h, 1); s.renderOrder = on ? 11 : 10; s.visible = visible;
   return s;
 }
 // ── low-poly fixture models ───────────────────────────────────────────────────
@@ -216,7 +238,7 @@ function items(g, list, geo = UNIT) {
   const im = new THREE.InstancedMesh(geo, mat("#ffffff", { r: 0.6 }), list.length);
   list.forEach((it, i) => {
     _eu.set(it.rx || 0, it.ry || 0, 0); _q.setFromEuler(_eu); _tr.set(it.x, it.y, it.z); _sc.set(it.w, it.h, it.d);
-    im.setMatrixAt(i, _m4.compose(_tr, _q, _sc)); im.setColorAt(i, _col.set(it.c));
+    im.setMatrixAt(i, _m4.compose(_tr, _q, _sc)); im.setColorAt(i, _col.copy(soft(it.c)));
   });
   im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
   im.receiveShadow = true; g.add(im);
@@ -253,7 +275,7 @@ function fillShelf(list, style, r, len, y, zc, sd, gap, side) {
   }
 }
 function gondola(g, L, T, H, dbl, style, r, col) {
-  const metal = mat("#8a8f99", { m: 0.4, r: 0.5 }), dark = mat("#3a3f48", { r: 0.6 });
+  const metal = mat(look.metal, { m: 0.35, r: 0.5 }), dark = mat(look.base, { r: 0.7 });
   const base = Math.min(0.35, H * 0.15);
   part(g, L, base, T, dark, 0, base / 2, 0);
   const back = dbl ? 0 : -T / 2 + 0.07;
@@ -272,13 +294,13 @@ function gondola(g, L, T, H, dbl, style, r, col) {
   items(g, list);
 }
 function cooler(g, L, T, H, r, col) {
-  const body = mat("#2e333b", { r: 0.55, m: 0.3 }), trim = mat("#b8bec8", { m: 0.6, r: 0.35 }), glass = mat("#9fd8ff", { o: 0.2, r: 0.1, m: 0.1 });
+  const body = mat(look.body, { r: 0.55, m: 0.25 }), trim = mat(look.metal, { m: 0.5, r: 0.35 }), glass = mat("#d8e8f0", { o: 0.16, r: 0.08, m: 0.1 });
   const foot = Math.min(0.5, H * 0.12), cap = Math.min(0.6, H * 0.12);
   part(g, L, H, 0.15, body, 0, H / 2, -T / 2 + 0.075);
   part(g, 0.15, H, T, body, -L / 2 + 0.075, H / 2, 0); part(g, 0.15, H, T, body, L / 2 - 0.075, H / 2, 0);
   part(g, L, foot, T, body, 0, foot / 2, 0); part(g, L, cap, T, body, 0, H - cap / 2, 0);
-  part(g, L, cap * 0.8, 0.12, mat(col, { e: 0.45 }), 0, H - cap / 2, T / 2 - 0.02);       // lit header sign
-  part(g, L - 0.3, 0.04, T - 0.4, mat("#eef8ff", { e: 0.9 }), 0, H - cap - 0.04, 0, false);  // interior light
+  part(g, L, cap * 0.8, 0.12, mat(col, { e: 0.12 }), 0, H - cap / 2, T / 2 - 0.02);       // header sign
+  part(g, L - 0.3, 0.04, T - 0.4, mat("#f4f8fb", { e: 0.45 }), 0, H - cap - 0.04, 0, false);  // interior light
   const nd = Math.max(1, Math.round(L / 2.4)), dw = L / nd, inner = H - foot - cap;
   for (let i = 0; i <= nd; i++) part(g, 0.08, inner, 0.1, trim, -L / 2 + dw * i + (i === 0 ? 0.04 : i === nd ? -0.04 : 0), foot + inner / 2, T / 2 - 0.05, false);
   for (let i = 0; i < nd; i++) {
@@ -300,10 +322,10 @@ function cooler(g, L, T, H, r, col) {
   items(g, list, CYL);
 }
 function freezer(g, L, T, H, r, col) {
-  const white = mat("#e6ebf0", { r: 0.5 }), frost = mat("#bfe6ff", { o: 0.32, r: 0.1 }), trim = mat("#9aa3ad", { m: 0.5, r: 0.4 });
+  const white = mat("#e9ecef", { r: 0.5 }), frost = mat("#dcebf3", { o: 0.28, r: 0.1 }), trim = mat(look.metal, { m: 0.45, r: 0.4 });
   const bh = Math.max(0.5, H * 0.8);
   part(g, L, bh, T, white, 0, bh / 2, 0);
-  part(g, L + 0.02, Math.min(0.35, bh * 0.2), T + 0.02, mat(col, { e: 0.2 }), 0, bh * 0.2, 0, false);  // color band
+  part(g, L + 0.02, Math.min(0.35, bh * 0.2), T + 0.02, mat(col), 0, bh * 0.2, 0, false);  // color band
   part(g, L, 0.08, T, trim, 0, bh + 0.04, 0, false);
   const list = [], cols = Math.max(1, Math.floor((L - 0.3) / 0.55)), rows = Math.max(1, Math.floor((T - 0.3) / 0.55));
   for (let a = 0; a < cols; a++) for (let b = 0; b < rows; b++) {
@@ -316,7 +338,7 @@ function freezer(g, L, T, H, r, col) {
   const l2 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, T / 4, false); l2.rotation.x = 0.12;
 }
 function wine(g, L, T, H, dbl, r, col) {
-  const wood = mat(col), dark = mat("#3b2a1a");
+  const wood = mat("#8a6a4c", { r: 0.8 }), dark = mat("#4a3826", { r: 0.85 });
   part(g, L, 0.3, T, dark, 0, 0.15, 0);
   part(g, 0.15, H, T, wood, -L / 2 + 0.075, H / 2, 0); part(g, 0.15, H, T, wood, L / 2 - 0.075, H / 2, 0);
   const back = dbl ? 0 : -T / 2 + 0.06;
@@ -336,14 +358,14 @@ function wine(g, L, T, H, dbl, r, col) {
   items(g, list, CYL);
 }
 function counter(g, L, T, H, r, col) {
-  const dark = mat("#22262d", { r: 0.5 });
+  const dark = mat("#2a2e35", { r: 0.5 });
   part(g, L, H - 0.15, T, mat(col), 0, (H - 0.15) / 2, 0);
-  part(g, L + 0.25, 0.15, T + 0.25, mat("#d9cdb8", { r: 0.5 }), 0, H - 0.075, 0);
+  part(g, L + 0.25, 0.15, T + 0.25, mat("#e4dccd", { r: 0.5 }), 0, H - 0.075, 0);
   part(g, L - 0.4, 0.4, 0.05, mat("#141820"), 0, 0.2, T / 2 + 0.01, false);
   const rx = -L / 4;
   part(g, 1.3, 0.45, 1.0, dark, rx, H + 0.225, 0);                                    // register
   const sc = part(g, 1.0, 0.7, 0.06, dark, rx, H + 0.8, -0.25); sc.rotation.x = -0.2;  // screen
-  const gl = part(g, 0.86, 0.56, 0.02, mat("#3fa7ff", { e: 0.6 }), rx, H + 0.8, -0.21, false); gl.rotation.x = -0.2;
+  const gl = part(g, 0.86, 0.56, 0.02, mat("#9cc6e8", { e: 0.3 }), rx, H + 0.8, -0.21, false); gl.rotation.x = -0.2;
   part(g, 0.35, 0.25, 0.45, dark, rx + 1.1, H + 0.125, T / 2 - 0.4);                   // card reader
   const list = [];
   for (let x = L / 4 - 0.8, i = 0; i < 8 && x < L / 2 - 0.2; i++, x += 0.22)
@@ -351,14 +373,14 @@ function counter(g, L, T, H, r, col) {
   items(g, list);
 }
 function displayCase(g, L, T, H, r, col) {
-  const glass = mat("#cfeaff", { o: 0.16, r: 0.05 }), metal = mat("#c0c6cf", { m: 0.7, r: 0.3 });
+  const glass = mat("#e2eef4", { o: 0.14, r: 0.05 }), metal = mat(look.metal, { m: 0.6, r: 0.3 });
   const ch = Math.min(H * 0.5, 2.2), gh = H - ch;
   part(g, L, ch, T, mat(col), 0, ch / 2, 0);
   part(g, L, gh, T, glass, 0, ch + gh / 2, 0, false);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, 0.07, gh, 0.07, metal, sx * (L / 2 - 0.035), ch + gh / 2, sz * (T / 2 - 0.035), false);
   for (const sz of [-1, 1]) part(g, L, 0.06, 0.07, metal, 0, H - 0.03, sz * (T / 2 - 0.035), false);
   for (const sx of [-1, 1]) part(g, 0.07, 0.06, T, metal, sx * (L / 2 - 0.035), H - 0.03, 0, false);
-  part(g, L - 0.3, 0.03, 0.22, mat("#fff4d6", { e: 0.7 }), 0, H - 0.1, -T / 2 + 0.3, false);  // light strip
+  part(g, L - 0.3, 0.03, 0.22, mat("#fff6e2", { e: 0.35 }), 0, H - 0.1, -T / 2 + 0.3, false);  // light strip
   const mid = ch + gh * 0.5;
   part(g, L - 0.2, 0.03, T - 0.3, glass, 0, mid, 0, false);
   const list = [];
@@ -371,7 +393,7 @@ function displayCase(g, L, T, H, r, col) {
 }
 function table(g, L, T, H, col) {
   const th = Math.min(0.45, H * 0.2), leg = Math.min(0.35, L / 6, T / 6), dark = mat(col);
-  part(g, L, th, T, mat("#b08355"), 0, H - th / 2, 0);
+  part(g, L, th, T, mat("#b4916b", { r: 0.8 }), 0, H - th / 2, 0);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) part(g, leg, H - th, leg, dark, sx * (L / 2 - leg), (H - th) / 2, sz * (T / 2 - leg));
   if (L > 1.2 && T > 1.2) part(g, L - 0.6, 0.08, T - 0.6, dark, 0, Math.min(0.6, H * 0.25), 0, false);
 }
@@ -387,9 +409,9 @@ function newsStand(g, L, T, H, r, col) {
   items(g, list);
 }
 function backRoom(g, L, T, r) {
-  part(g, L, 0.04, T, mat("#4a4f57", { r: 0.95 }), 0, 0.02, 0, false);
+  part(g, L, 0.04, T, mat(look.base, { r: 0.95 }), 0, 0.02, 0, false);
   if (L < 3.6 || T < 3.6) return 0.04;
-  const pallet = mat("#9c7a4d"), list = [];
+  const pallet = mat("#a08463", { r: 0.9 }), list = [];
   const spots = [[-L / 2 + 1.7, -T / 2 + 1.7], [L / 2 - 1.7, -T / 2 + 1.7], [-L / 2 + 1.7, T / 2 - 1.7]].slice(0, L * T > 60 ? 3 : 1);
   let top = 0.4;
   for (const [px, pz] of spots) {
@@ -408,10 +430,10 @@ export function buildFixture(z, size) {
   const g = new THREE.Group(), m = new THREE.Group(); g.add(m);
   const f = facing(z, size), style = styleOf(z), r = rng(z.key || "x");
   const L = Math.max(f.L, 0.2), T = Math.max(f.T, 0.2), H = Math.max(z.h, 0.05);
-  const col = "#" + brighten(z.color, style === "separator" ? 0.14 : 0.3).getHexString();
+  const col = "#" + calm(z.color).getHexString();
   let top = H;
   switch (style) {
-    case "separator": part(m, L, H, Math.min(T, 0.25), mat("#4b515b", { m: 0.3 }), 0, H / 2, 0); break;
+    case "separator": part(m, L, H, Math.min(T, 0.25), mat(look.base, { m: 0.3 }), 0, H / 2, 0); break;
     case "backroom": top = backRoom(m, L, T, r); break;
     case "cooler": cooler(m, L, T, H, r, col); break;
     case "freezer": freezer(m, L, T, H, r, col); break;
@@ -446,15 +468,17 @@ function animateWalls(meshes, walls, size, camera, mode, heights) {
     m.scale.y = y; m.position.y = y / 2; heights[i] = y;
   });
 }
-const wallMaterial = on => new THREE.MeshStandardMaterial({ color: on ? "#f0c040" : "#b7413a", roughness: 0.8,
+const wallMaterial = on => new THREE.MeshStandardMaterial({ color: on ? "#f0c040" : look.wall, roughness: 0.9,
   emissive: on ? new THREE.Color("#f0c040") : new THREE.Color(0), emissiveIntensity: on ? 0.25 : 0 });
 
 // ── 3D viewer (used by every floor map in the app) ────────────────────────────
-export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } = {}) {
+export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#141005", theme = "dark", onSelectZone } = {}) {
+  look = LOOK[theme] || LOOK.dark;
+  const LABEL_H = 0.044; // label height as a share of the view (≈ 20–24px on a phone card)
   const st = toFeet(layout), { size } = st, raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
   let down = null;
   const stage = createStage(host, {
-    bg: "#06080d",
+    bg: look.bg,
     listeners: {
       pointerdown: e => { down = { x: e.clientX, y: e.clientY }; },
       pointerup: e => {
@@ -478,18 +502,24 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
     m.userData = { key: z.key, tappable: z.tappable, top };
     stage.world.add(m);
     let label = null;
-    if (z.label && z.tappable) { label = makeLabel(z.label, false); label.position.set(m.position.x, top + 0.9, m.position.z); stage.world.add(label); }
+    if (z.label && z.tappable) { label = makeLabel(z.label, false, true, accent, accentInk, LABEL_H); label.position.set(m.position.x, top + 0.9, m.position.z); stage.world.add(label); }
     byKey[z.key] = { m, z, label };
   });
   st.walls.forEach((w, i) => {
     const m = new THREE.Mesh(UNIT, wallMaterial(false)); m.castShadow = true; m.receiveShadow = true;
     placeWall(m, w, size, WALL_H); stage.world.add(m); wallMeshes[i] = m;
   });
-  const marker = new THREE.Mesh(new THREE.ConeGeometry(0.7, 1.6, 20), new THREE.MeshStandardMaterial({ color: accent, emissive: new THREE.Color(accent), emissiveIntensity: 0.8 }));
-  marker.rotation.x = Math.PI; marker.visible = false; stage.world.add(marker);
-  const glow = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.18, depthWrite: false }));
-  glow.add(new THREE.LineSegments(UNIT_EDGES, new THREE.LineBasicMaterial({ color: accent })));
+  // pin: a map-pin shape over the fixture, a soft halo on it and a pulsing ring on the floor
+  const pinMat = new THREE.MeshStandardMaterial({ color: accent, emissive: new THREE.Color(accent), emissiveIntensity: 0.35, roughness: 0.4 });
+  const marker = new THREE.Group();
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.62, 28, 20), pinMat); head.position.y = 0.95;
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.1, 28), pinMat); tip.rotation.x = Math.PI; tip.position.y = 0.3;
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(0.24, 20, 14), new THREE.MeshBasicMaterial({ color: "#ffffff" })); dot.position.set(0, 0.97, 0.45);
+  marker.add(head, tip, dot); marker.traverse(o => { o.castShadow = true; }); marker.visible = false; stage.world.add(marker);
+  const glow = new THREE.Mesh(UNIT, new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.14, depthWrite: false }));
   glow.visible = false; stage.world.add(glow);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 64), new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; ring.visible = false; stage.world.add(ring);
   aimCamera(stage, size);
 
   let pin = null, fly = null;
@@ -497,27 +527,29 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
   stage.controls.addEventListener("start", () => { fly = null; });
   function flyTo(o) {
     const { camera, controls } = stage;
-    const dist = Math.min(36, Math.max(18, Math.max(o.z.w, o.z.d) * 1.5 + 16));
-    const tgt = new THREE.Vector3(o.m.position.x, Math.min(o.m.userData.top, 4) / 2, o.m.position.z);
+    // keep most of the store in view: ease the camera part of the way toward the pin and zoom in a little
+    const dist = Math.max(size.w, size.d) * 1.25;
+    const tgt = new THREE.Vector3(o.m.position.x * 0.45, 0, o.m.position.z * 0.45);
     const dir = camera.position.clone().sub(controls.target).normalize();
-    if (dir.y < 0.45) { dir.y = 0.45; dir.normalize(); } // never skim the floor
+    if (dir.y < 0.7) { dir.y = 0.7; dir.normalize(); } // stay high enough to see over the shelves
     fly = { tgt, pos: tgt.clone().addScaledVector(dir, dist) };
   }
   function setLabel(o, on) {
     if (!o.label) return;
     stage.world.remove(o.label); o.label.material.map.dispose(); o.label.material.dispose();
-    o.label = makeLabel(o.z.label, on, true, accent);
-    o.label.position.set(o.m.position.x, o.m.userData.top + (on ? 3.2 : 0.9), o.m.position.z); stage.world.add(o.label);
+    o.label = makeLabel(o.z.label, on, true, accent, accentInk, LABEL_H);
+    o.label.position.set(o.m.position.x, o.m.userData.top + (on ? 2.9 : 0.9), o.m.position.z); stage.world.add(o.label);
   }
   function setPin(key) {
     if (pin === key) return;
     if (byKey[pin]) setLabel(byKey[pin], false);
     pin = key;
     const o = byKey[key];
-    marker.visible = glow.visible = !!o;
+    marker.visible = glow.visible = ring.visible = !!o;
     if (o) {
       const h = Math.max(o.z.h, o.m.userData.top) + 0.1;
       glow.scale.set(o.z.w + 0.3, h, o.z.d + 0.3); glow.position.set(o.m.position.x, h / 2, o.m.position.z);
+      ring.position.x = o.m.position.x; ring.position.z = o.m.position.z; ring.userData.r = Math.hypot(o.z.w, o.z.d) / 2 + 0.6;
       setLabel(o, true);
       flyTo(o);
     }
@@ -530,10 +562,34 @@ export function mountViewer(host, layout, { accent = "#f0c040", onSelectZone } =
     }
     const o = byKey[pin];
     if (o) {
-      glow.material.opacity = 0.12 + 0.1 * Math.sin(t / 260);
-      marker.position.set(o.m.position.x, o.m.userData.top + 1.6 + 0.35 * Math.sin(t / 300), o.m.position.z);
+      glow.material.opacity = 0.1 + 0.05 * Math.sin(t / 420);
+      marker.position.set(o.m.position.x, o.m.userData.top + 1.1 + 0.22 * Math.sin(t / 380), o.m.position.z);
+      marker.rotation.y = t / 1400;
+      const k = (t % 1800) / 1800, rr = ring.userData.r * (0.75 + k * 0.6);   // ring spreads out and fades, then repeats
+      ring.scale.set(rr, rr, 1); ring.material.opacity = 0.55 * (1 - k);
     }
+    if (++frame % 8 === 0) declutter();
   });
+  // Hide labels that would overlap on screen: the pinned one wins, then the biggest fixtures
+  let frame = 0;
+  const _v = new THREE.Vector3();
+  function declutter() {
+    const { camera, el } = stage, W = el.clientWidth, H = el.clientHeight; if (!W) return;
+    const f = 1 / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+    const list = Object.values(byKey).filter(o => o.label)
+      .sort((a, b) => (b.z.key === pin) - (a.z.key === pin) || b.z.w * b.z.d - a.z.w * a.z.d);
+    const placed = [];
+    for (const o of list) {
+      const l = o.label; _v.copy(l.position).project(camera);
+      const h = l.scale.y * f * H, w = h * l.scale.x / l.scale.y;
+      const x = (_v.x + 1) / 2 * W, y = (1 - _v.y) / 2 * H;
+      const box = { x: x - w / 2 - 2, y: y - h / 2 - 2, w: w + 4, h: h + 4 };
+      const off = _v.z > 1 || x < -w || x > W + w || y < -h || y > H + h;
+      const hit = placed.some(p => box.x < p.x + p.w && box.x + box.w > p.x && box.y < p.y + p.h && box.y + box.h > p.y);
+      l.visible = o.z.key === pin || (!off && !hit && h > 7);
+      if (l.visible) placed.push(box);
+    }
+  }
   return { setPin, top: () => { fly = null; aimCamera(stage, size, "top"); }, angled: () => { fly = null; aimCamera(stage, size, "3d"); }, dispose: () => stage.dispose() };
 }
 
@@ -633,6 +689,7 @@ const MARKUP = `
 <div class="toast" data-r="toast" hidden></div>`;
 
 export function mountBuilder(host, layout, { onSave }) {
+  look = LOOK.dark; // the builder always uses the dark workspace
   if (!document.querySelector("style[data-sb]")) { const s = document.createElement("style"); s.dataset.sb = "1"; s.textContent = CSS; document.head.appendChild(s); }
   host.classList.add("sb"); host.innerHTML = MARKUP;
   const $ = n => host.querySelector(`[data-r="${n}"]`);
@@ -881,7 +938,7 @@ export function mountBuilder(host, layout, { onSave }) {
 
   // ── catalog & toolbar ──
   $("catalog").innerHTML = Object.entries(KINDS).map(([k, v]) =>
-    `<button class="cat" data-add="${k}"><span class="box" style="background:#${brighten(v.color).getHexString()}"></span>${v.name}<small>${v.w}×${v.d}×${v.h} ft</small></button>`).join("");
+    `<button class="cat" data-add="${k}"><span class="box" style="background:#${calm(v.color, 0.5).getHexString()}"></span>${v.name}<small>${v.w}×${v.d}×${v.h} ft</small></button>`).join("");
   $("catalog").addEventListener("click", e => {
     const b = e.target.closest("[data-add]"); if (!b) return; const k = b.dataset.add, K = KINDS[k];
     setDraw(false);
