@@ -6,7 +6,38 @@ import { layoutFeet, findDoor, routeTo, arrowsAlong } from "./route.js";
 // ── Supabase ───────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://tfetbksdzbvxnahyxfad.supabase.co";
 const SUPABASE_KEY = "sb_publishable_RmrvpSeQPV367nQ5Xefryw_MGLHJqK1";
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Sign-in is checked by the database: app_sign_in(pin) returns a token, and every request from a
+// signed-in device carries it in the x-app-session header, which the row-level security rules read.
+let SESSION=(()=>{try{return sessionStorage.getItem("app-session")||"";}catch{return "";}})();
+function setSession(t){SESSION=t||"";try{t?sessionStorage.setItem("app-session",t):sessionStorage.removeItem("app-session");}catch{}}
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  appSession:()=>SESSION,   // read by the preview's stand-in client; the real one ignores it
+  global:{fetch:(input,init={})=>{
+    const headers=new Headers(init.headers||{});
+    if(SESSION)headers.set("x-app-session",SESSION);
+    return fetch(input,{...init,headers}).then(res=>{
+      // a refused write while signed in means the sign-in has expired (or manager access was switched off)
+      if(SESSION&&(res.status===401||res.status===403))window.dispatchEvent(new Event("app-session-refused"));
+      return res;
+    });
+  }},
+});
+// a stored item row (snake_case) as the app uses it
+function rowToItem(row){
+  return {
+    id:row.id, name:row.name, category:row.category,
+    subcategory:row.subcategory||"", price:parseFloat(row.price),
+    location:row.location||"", notes:row.notes||"",
+    inventory:row.inventory??null, outOfStock:row.out_of_stock||false,
+    mapZone:row.map_zone||null, expiryDate:row.expiry_date||"",
+    packSize:row.pack_size||null, containerType:row.container_type||null,
+    deposit:row.deposit!=null?parseFloat(row.deposit):null,
+    wineType:row.wine_type||null,
+    dayPrices:parseDayPrices(row.day_prices),
+    gilliesRecommendation:row.gillies_recommendation||false,
+    taxable:row.taxable||false,
+  };
+}
 
 // ── Categories ────────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -92,7 +123,6 @@ function buildThemeVariant(theme,mode,key){
 }
 
 
-const DEFAULT_MANAGER_PIN="3018", DEV_PIN="130654";
 const DEV_TABS=[{id:"settings",label:"Settings",icon:"settings"},{id:"items",label:"Items",icon:"database"},{id:"map",label:"Map",icon:"map"},{id:"bugs",label:"Bugs",icon:"bug"}];
 const DEV_CARD={background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:16,marginBottom:14,boxShadow:"var(--shadow)"};
 const DEV_TITLE={fontSize:15,fontWeight:700,color:"var(--text)",letterSpacing:"-0.01em",marginBottom:3};
@@ -746,6 +776,15 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
   const [pressed,setPressed]=useState(false);
   const [mapExpanded,setMapExpanded]=useState(false);
   const [mapMini,setMapMini]=useState(true);
+  // recent price changes, fetched when a signed-in person opens the card
+  const [hist,setHist]=useState(null);
+  useEffect(()=>{setHist(null);},[item.price]);
+  useEffect(()=>{
+    if(!expanded||!canEdit||hist)return;
+    sb.from("item_edits").select("before,after,created_at").eq("item_id",item.id).eq("action","edited").eq("undone",false)
+      .order("created_at",{ascending:false}).limit(25)
+      .then(({data})=>setHist((data||[]).filter(r=>r.before&&r.after&&+r.before.price!==+r.after.price).slice(0,3)));
+  },[expanded,canEdit,hist,item.id]);
   const oos=item.outOfStock;
   const isPackSub=PACK_SUBS.includes(item.subcategory);
   const isWineSub=WINE_SUBS.includes(item.subcategory);
@@ -809,6 +848,15 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
                 );})}
                 {hasInventory&&<span style={TAG}>{item.inventory} in stock</span>}
                 {item.gilliesRecommendation&&<span style={{...TAG,background:"var(--brand-soft)",color:"var(--brand)",fontWeight:600,display:"inline-flex",alignItems:"center",gap:4}}><Icon name="star" size={12} stroke={2.4}/>Gillie's pick</span>}
+              </div>
+            )}
+            {canEdit&&hist?.length>0&&(
+              <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:10,display:"flex",gap:"4px 10px",flexWrap:"wrap",alignItems:"center"}}>
+                <span style={{display:"inline-flex",alignItems:"center",gap:5}}><Icon name="history" size={14}/>Price changes</span>
+                {hist.map((h,k)=>(
+                  <span key={k} style={{fontVariantNumeric:"tabular-nums"}}>${(+h.before.price).toFixed(2)} → <b style={{color:"var(--text)",fontWeight:600}}>${(+h.after.price).toFixed(2)}</b>
+                    <span style={{color:"var(--faint)"}}> · {new Date(h.created_at).toLocaleDateString([],{month:"short",day:"numeric"})}</span></span>
+                ))}
               </div>
             )}
             {totalLabel&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10,fontSize:13,color:"var(--muted)"}}><span>Price ${todayPrice.toFixed(2)}{item.taxable&&` + tax $${tax.toFixed(2)}`}{item.deposit>0&&` + deposit $${item.deposit.toFixed(2)}`}</span><span style={{fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
@@ -1133,7 +1181,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 }
 
 // ── CategoryPage ──────────────────────────────────────────────────────────────
-function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false,bannerOffset=0}){
+function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager,isDev,onRequireManager,isDark,onToggleTheme,scrollToItem,managerDisabled=false,bannerOffset=0}){
   const layout=useContext(LayoutCtx);
   const taxRate=useContext(TaxCtx);
   function requireManager(){
@@ -1296,7 +1344,6 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
       // only sent when there are day prices (or were), so nothing else depends on the column existing
       ...(dayPricesOut.length||editItem?.dayPrices?.length?{day_prices:dayPricesOut.length?JSON.stringify(dayPricesOut):null}:{}),
     };
-    const action=editItem?"edited":"added";
     try{
       if(editItem){
         const {error}=await sb.from("items").update(row).eq("id",editItem.id);
@@ -1306,21 +1353,6 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
         if(!error&&data)setItems(prev=>[...prev,{id:data.id,category:category.key,...base,...extra}]);
       }
     }catch(e){console.error("Save error:",e);}
-    const cat=CATEGORIES.find(c=>c.key===category.key);
-    const sub=category.subcategories.find(s=>s.key===base.subcategory);
-    onAuditLog&&onAuditLog({
-      id:Date.now(), action, itemName:base.name,
-      category:cat?.name||category.key, subcategory:sub?.name||base.subcategory,
-      price:parseFloat(form.price),
-      details:PACK_SUBS.includes(form.subcategory)?`${form.packSize} · ${form.containerType}`:WINE_SUBS.includes(form.subcategory)?form.wineType:"",
-      timestamp:new Date(),
-      role:isDev?"Developer":"Manager",
-      // snapshot for undo: previous item state (for edits) or item id (for adds/deletes)
-      snapshot:action==="edited"?editItem:null,
-      after:action==="edited"?{...editItem,...base,...extra}:null,
-      itemId:action==="edited"?editItem?.id:null,
-      categoryKey:category.key,
-    });
     setSyncing(false);setEditItem(null);setShowForm(false);setForm(emptyForm);
   }
 
@@ -2040,7 +2072,7 @@ function StoreBuilderPanel({layout,onSave}){
   return <div ref={ref} style={{marginBottom:24}}/>;
 }
 
-function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
+function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
   const [showBuilder,setShowBuilder]=useState(false);
   const [tab,setTab]=useState(()=>{try{return sessionStorage.getItem("dev-tab")||"settings";}catch{return "settings";}});
   function pickTab(t){setTab(t);window.scrollTo(0,0);try{sessionStorage.setItem("dev-tab",t);}catch{}}
@@ -2069,6 +2101,24 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
   const [taxRateSaved,setTaxRateSaved]=useState(false);
   const [confirmDisable,setConfirmDisable]=useState(false);
   const [pinShown,setPinShown]=useState(false);
+  // shared edit history (item_edits, written by a database trigger on every add / edit / delete)
+  const [edits,setEdits]=useState(null),[editsMore,setEditsMore]=useState(false),[editsErr,setEditsErr]=useState(false);
+  const toEntry=row=>{
+    const b=row.before?rowToItem(row.before):null, a=row.after?rowToItem(row.after):null, it=a||b||{};
+    const cat=CATEGORIES.find(c=>c.key===it.category), sub=cat?.subcategories.find(x=>x.key===it.subcategory);
+    return {id:row.id,action:row.action,itemName:it.name||"Unknown item",category:cat?.name||it.category,subcategory:sub?.name||it.subcategory,
+      price:it.price,timestamp:row.created_at,role:{manager:"Manager",dev:"Developer"}[row.role]||null,snapshot:b,after:a};
+  };
+  async function loadEdits(more=false){
+    const from=more?(edits?.length||0):0;
+    if(!more)setEdits(null);
+    const {data,error}=await sb.from("item_edits").select("*").eq("undone",false).order("created_at",{ascending:false}).range(from,from+29);
+    if(error){setEditsErr(true);setEdits(e=>e||[]);return;}
+    setEditsErr(false);
+    const rows=(data||[]).map(toEntry);
+    setEdits(prev=>more?[...(prev||[]),...rows]:rows);setEditsMore((data||[]).length===30);
+  }
+  useEffect(()=>{if(isDev&&tab==="items")loadEdits();},[tab,isDev]);
   const [undoFx,setUndoFx]=useState({}); // entry id -> {phase:"spread"|"leave"|"error", x, y}
   const [pinForm,setPinForm]=useState(false);
   const [newPin,setNewPin]=useState(""),[newPin2,setNewPin2]=useState("");
@@ -2076,11 +2126,10 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
   async function savePin(){
     if(newPin.length<4)return setPinMsg("The PIN needs 4 to 6 digits.");
     if(newPin!==newPin2)return setPinMsg("The two PINs don't match.");
-    if(newPin===DEV_PIN)return setPinMsg("That PIN is taken. Pick a different one.");
     if(newPin===managerPin)return setPinMsg("That's already the PIN.");
     setPinBusy(true);
     try{await onManagerPinChange(newPin);setPinForm(false);setPinShown(false);setPinMsg("");}
-    catch(e){setPinMsg("Couldn't save the PIN. Check your connection and try again.");}
+    catch(e){setPinMsg(/^(The PIN|That PIN)/.test(e?.message||"")?e.message:"Couldn't save the PIN. Check your connection and try again.");}
     setPinBusy(false);
   }
   const [showNotifForm,setShowNotifForm]=useState(false);
@@ -2132,7 +2181,7 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
             <span style={{color:"var(--muted)",display:"inline-flex"}}><Icon name="lock" size={17}/></span>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:12,color:"var(--muted)"}}>Manager PIN</div>
-              <div style={{fontSize:17,fontWeight:700,color:"var(--text)",letterSpacing:pinShown?"0.12em":"0.2em",fontVariantNumeric:"tabular-nums"}}>{pinShown?managerPin:"•".repeat(managerPin.length)}</div>
+              <div style={{fontSize:17,fontWeight:700,color:"var(--text)",letterSpacing:pinShown?"0.12em":"0.2em",fontVariantNumeric:"tabular-nums"}}>{pinShown?(managerPin||"…"):"•".repeat(managerPin.length||4)}</div>
             </div>
             <button onClick={()=>setPinShown(v=>!v)} className="press" style={{...ACTION_BTN("var(--muted)","transparent"),minHeight:36,padding:"0 10px",fontSize:13}}>{pinShown?"Hide":"Show"}</button>
             {!pinForm&&<button onClick={()=>{setPinForm(true);setNewPin("");setNewPin2("");setPinMsg("");}} className="press" style={{...ACTION_BTN(DT.accent,`${DT.accent}18`),minHeight:36,padding:"0 12px",fontSize:13}}><Icon name="edit" size={15}/>Change</button>}
@@ -2290,11 +2339,16 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
         <DevTaxBulk items={items} setItems={setItems} taxRate={taxRate}/>
         <DevNewspaperMerge items={items} setItems={setItems}/>
         <DevDataTools items={items} setItems={setItems}/>
-        <div style={DEV_H}>Recent edits <span style={{color:"var(--faint)",fontWeight:500}}>· last {auditLog.length} of 10</span></div>
-        {auditLog.length===0?(
-          <div style={{fontSize:12,color:DT.subText,padding:"8px 0"}}>No edits yet this session</div>
-        ):(
-          auditLog.map((entry,i)=>{
+        <div style={{...DEV_H,display:"flex",alignItems:"baseline",justifyContent:"space-between",gap:8}}>
+          <span>Recent edits <span style={{color:"var(--faint)",fontWeight:500}}>· every device</span></span>
+          <button onClick={()=>loadEdits()} className="press" style={{background:"none",border:"none",color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",padding:4}}>Refresh</button>
+        </div>
+        {edits===null?<SkeletonCards n={3} h={110}/>:editsErr?(
+          <div style={{fontSize:13,color:"var(--danger)",padding:"8px 2px"}}>Couldn't load the edit history. Check your connection and tap Refresh.</div>
+        ):edits.length===0?(
+          <div style={{fontSize:13,color:"var(--muted)",padding:"8px 2px"}}>No edits yet.</div>
+        ):(<>
+          {edits.map((entry,i)=>{
             const tone=entry.action==="added"?"var(--success)":entry.action==="deleted"?"var(--danger)":"var(--brand)";
             const t=new Date(entry.timestamp);
             const when=isNaN(t)?"":t.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+(t.toDateString()!==new Date().toDateString()?` · ${t.toLocaleDateString([],{month:"short",day:"numeric"})}`:"");
@@ -2336,15 +2390,13 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
                   <button onClick={async e=>{
                     const card=e.currentTarget.closest("[data-audit]").getBoundingClientRect(), btn=e.currentTarget.getBoundingClientRect();
                     const x=`${((btn.left+btn.width/2-card.left)/card.width*100).toFixed(1)}%`, y=`${((btn.top+btn.height/2-card.top)/card.height*100).toFixed(1)}%`;
-                    const s=entry.snapshot;
-                    const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,taxable:s.taxable||false,gillies_recommendation:s.gilliesRecommendation||false,
-                      ...(entry.after?{day_prices:s.dayPrices?.length?JSON.stringify(s.dayPrices):null}:{})};
-                    const {error}=await sb.from("items").update(row).eq("id",s.id);
-                    if(error){setUndoFx(f=>({...f,[entry.id]:{phase:"error"}}));return;}
-                    setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));
+                    const {data,error}=await sb.rpc("app_undo_edit",{edit_id:entry.id});
+                    if(error||!data||data.error){setUndoFx(f=>({...f,[entry.id]:{phase:"error"}}));return;}
+                    const back=rowToItem(data.item);
+                    setItems&&setItems(prev=>prev.map(i=>i.id===back.id?back:i));
                     setUndoFx(f=>({...f,[entry.id]:{phase:"spread",x,y}}));
                     setTimeout(()=>setUndoFx(f=>({...f,[entry.id]:{...f[entry.id],phase:"leave"}})),1500);
-                    setTimeout(()=>{onAuditRemove&&onAuditRemove(entry.id);setUndoFx(f=>{const n={...f};delete n[entry.id];return n;});},1950);
+                    setTimeout(()=>{setEdits(prev=>prev.filter(x=>x.id!==entry.id));setUndoFx(f=>{const n={...f};delete n[entry.id];return n;});},1950);
                   }} className="press" style={{...ACTION_BTN("var(--brand)","var(--brand-soft)"),width:"100%",marginTop:10,minHeight:40,fontSize:13.5}}>
                     <Icon name="history" size={15}/>Undo this edit
                   </button>
@@ -2362,8 +2414,9 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
               </div>
               </div>
             );
-          })
-        )}
+          })}
+          {editsMore&&<button onClick={()=>loadEdits(true)} className="press" style={{...ACTION_BTN(),width:"100%",marginTop:4}}>Show older edits</button>}
+        </>)}
         </div>}
         {tab==="map"&&<div key="map" style={{animation:"fadeUp .3s var(--ease-out)"}}>
         <div style={{background:DT.cardBg,border:`1px solid ${showBuilder?DT.accent+"55":DT.cardBorder}`,borderRadius:16,padding:16,boxShadow:"var(--shadow)",marginBottom:showBuilder?12:14,transition:"border-color 0.3s"}}>
@@ -3584,7 +3637,7 @@ function SuggestionsPage({isDark,isManager,isDev}){
     if(hasVoted(id))return;
     const s=suggestions.find(s=>s.id===id);
     if(!s)return;
-    await sb.from("suggestions").update({votes:(s.votes||0)+1}).eq("id",id);
+    await sb.rpc("app_vote",{suggestion_id:id});
     setSuggestions(prev=>prev.map(s=>s.id===id?{...s,votes:(s.votes||0)+1}:s));
     markVoted(id);
   }
@@ -3831,17 +3884,18 @@ export default function App(){
   const [selectedCategory,setSelectedCategory]=useState(null);
   const [scrollToItem,setScrollToItem]=useState(null);
   const [items,setItems]=useState([]);
-  const [isDev,setIsDev]=useState(()=>{try{return sessionStorage.getItem("isDev")==="true";}catch{return false;}});
-  const [isManager,setIsManager]=useState(()=>{try{return sessionStorage.getItem("isManager")==="true";}catch{return false;}});
+  const [isDev,setIsDev]=useState(()=>{try{return !!SESSION&&sessionStorage.getItem("isDev")==="true";}catch{return false;}});
+  const [isManager,setIsManager]=useState(()=>{try{return !!SESSION&&sessionStorage.getItem("isManager")==="true";}catch{return false;}});
   const [showPinModal,setShowPinModal]=useState(false);
   const [pinInput,setPinInput]=useState("");
-  const [pinError,setPinError]=useState(false);
+  const [pinError,setPinError]=useState("");   // message under the PIN box
+  const [pinBusy,setPinBusy]=useState(false);
   const [isDark,setIsDark]=useState(()=>loadTheme()==="dark");
   useEffect(()=>{
     document.documentElement.dataset.theme=isDark?"dark":"light";
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content",isDark?"#0e1014":"#f5f5f1");
   },[isDark]);
-  const [auditLog,setAuditLog]=useState(()=>{try{const s=localStorage.getItem("audit_log");return s?JSON.parse(s):[];}catch{return[];}});
+  useEffect(()=>{try{localStorage.removeItem("audit_log");}catch{}},[]);   // the edit history lives in the database now
   const [taxRate,setTaxRate]=useState(DEFAULT_TAX_RATE);
   const [loading,setLoading]=useState(true);
   const [managerDisabled,setManagerDisabled]=useState(false);
@@ -3852,12 +3906,25 @@ export default function App(){
   const [showMore,setShowMore]=useState(false);
   const [layout,setLayout]=useState(DEFAULT_LAYOUT);
   // a banner someone closed stays closed on their device (a new or changed banner shows again)
-  const [managerPin,setManagerPin]=useState(DEFAULT_MANAGER_PIN);
+  // manager PIN, shown to the developer only (the database hands it out to a developer sign-in)
+  const [managerPin,setManagerPin]=useState("");
+  useEffect(()=>{if(isDev)sb.rpc("app_manager_pin").then(({data})=>setManagerPin(data||""));else setManagerPin("");},[isDev]);
   async function saveManagerPin(p){
-    const {error}=await sb.from("app_settings").upsert({key:"manager_pin",value:p},{onConflict:"key"});
+    const {data,error}=await sb.rpc("app_set_manager_pin",{new_pin:p});
     if(error)throw error;
+    if(data?.error)throw new Error(data.error);
     setManagerPin(p);
   }
+  // a stored sign-in is re-checked on load, when the app comes back to the front, and every 5 minutes
+  useEffect(()=>{
+    const check=()=>{if(!SESSION)return;sb.rpc("app_whoami").then(({data,error})=>{if(!error&&!data)window.dispatchEvent(new Event("app-session-refused"));});};
+    const expired=()=>{setSession("");setIsManager(false);setIsDev(false);try{sessionStorage.removeItem("isManager");sessionStorage.removeItem("isDev");}catch{}
+      setPinError("Your sign-in expired. Enter your PIN again.");setShowPinModal(true);};
+    check();
+    const iv=setInterval(check,5*60000), vis=()=>document.visibilityState==="visible"&&check();
+    window.addEventListener("app-session-refused",expired);document.addEventListener("visibilitychange",vis);
+    return()=>{clearInterval(iv);window.removeEventListener("app-session-refused",expired);document.removeEventListener("visibilitychange",vis);};
+  },[]);
   const [hiddenNotif,setHiddenNotif]=useState(()=>{try{return localStorage.getItem("notif-hidden")||"";}catch{return "";}});
   // pick up banners posted from another device without a reload
   useEffect(()=>{
@@ -3875,22 +3942,8 @@ export default function App(){
       try{
         const {data:itemData}=await sb.from("items").select("*").order("name");
         if(itemData&&itemData.length>0){
-          setItems(itemData.map(row=>({
-            id:row.id, name:row.name, category:row.category,
-            subcategory:row.subcategory||"", price:parseFloat(row.price),
-            location:row.location||"", notes:row.notes||"",
-            inventory:row.inventory??null, outOfStock:row.out_of_stock||false,
-            mapZone:row.map_zone||null, expiryDate:row.expiry_date||"",
-            packSize:row.pack_size||null, containerType:row.container_type||null,
-            deposit:row.deposit!=null?parseFloat(row.deposit):null,
-            wineType:row.wine_type||null,
-            dayPrices:parseDayPrices(row.day_prices),
-            gilliesRecommendation:row.gillies_recommendation||false,
-            taxable:row.taxable||false,
-          })));
+          setItems(itemData.map(rowToItem));
         }
-        // manager PIN set from the Developer Console (falls back to the original one)
-        try{const {data:mp}=await sb.from("app_settings").select("value").eq("key","manager_pin").maybeSingle();if(mp&&/^\d{4,6}$/.test(mp.value||""))setManagerPin(mp.value);}catch{}
         const rate=await fetchTaxRate();
         setTaxRate(rate);
         // Load managerDisabled
@@ -3910,8 +3963,8 @@ export default function App(){
         const storedYear=parseInt(localStorage.getItem("shifts_year")||"0");
         const thisYear=new Date().getFullYear();
         if(storedYear!==0&&storedYear!==thisYear){
-          await sb.from("schedule_shifts").delete().neq("id",0);
-          localStorage.setItem("shifts_year",String(thisYear));
+          const {error:clearErr}=await sb.from("schedule_shifts").delete().neq("id",0);
+          if(!clearErr)localStorage.setItem("shifts_year",String(thisYear));
         } else if(storedYear===0){
           localStorage.setItem("shifts_year",String(thisYear));
         }
@@ -3931,27 +3984,22 @@ export default function App(){
   const hasShownWelcomeRef=useRef({dev:false,manager:false});
 
 
-  function addAuditEntry(entry){
-    const pick=o=>o?{id:o.id,name:o.name,category:o.category,subcategory:o.subcategory,price:o.price,location:o.location,notes:o.notes,
-      inventory:o.inventory,outOfStock:o.outOfStock,mapZone:o.mapZone,expiryDate:o.expiryDate,packSize:o.packSize,containerType:o.containerType,
-      deposit:o.deposit,wineType:o.wineType,gilliesRecommendation:o.gilliesRecommendation,taxable:o.taxable||false,dayPrices:o.dayPrices||[]}:null;
-    setAuditLog(prev=>{
-      const serialized={...entry,timestamp:entry.timestamp instanceof Date?entry.timestamp.toISOString():entry.timestamp,snapshot:pick(entry.snapshot),after:pick(entry.after)};
-      const next=[serialized,...prev].slice(0,10);
-      try{localStorage.setItem("audit_log",JSON.stringify(next));}catch{}
-      return next;
-    });
+  async function submitPin(){
+    if(!pinInput||pinBusy)return;
+    setPinBusy(true);
+    const {data,error}=await sb.rpc("app_sign_in",{pin:pinInput});
+    setPinBusy(false);setPinInput("");
+    if(error||!data){setPinError("Couldn't reach the server. Check the connection and try again.");return;}
+    if(data.error){setPinError({wrong:"Incorrect PIN, try again",disabled:"Manager access is turned off right now",locked:"Too many wrong PINs. Wait 10 minutes and try again."}[data.error]||"Couldn't sign in");return;}
+    setSession(data.token);
+    const dev=data.role==="dev";
+    setIsManager(true);setIsDev(dev);
+    try{sessionStorage.setItem("isManager","true");dev?sessionStorage.setItem("isDev","true"):sessionStorage.removeItem("isDev");}catch{}
+    setShowPinModal(false);setPinError("");
   }
-
-  function submitPin(){
-    if(managerDisabled&&pinInput===managerPin){setPinError(true);setPinInput("");return;}
-    if(pinInput===managerPin||pinInput===DEV_PIN){
-      setIsManager(true);
-      if(pinInput===DEV_PIN)setIsDev(true);
-      try{sessionStorage.setItem("isManager","true");if(pinInput===DEV_PIN)sessionStorage.setItem("isDev","true");}catch{}
-      setShowPinModal(false);setPinInput("");setPinError(false);
-    } else {setPinError(true);setPinInput("");}
-  }  function logout(){
+  function logout(){
+    if(SESSION)sb.rpc("app_sign_out");
+    setSession("");
     setIsManager(false);setIsDev(false);
     try{sessionStorage.removeItem("isManager");sessionStorage.removeItem("isDev");}catch{}
     hasShownWelcomeRef.current={dev:false,manager:false};
@@ -4081,15 +4129,15 @@ export default function App(){
             {managerDisabled&&<div style={{fontSize:11,color:"#e74c3c",marginBottom:12,padding:"6px 10px",background:"#e74c3c11",border:"1px solid #e74c3c33",borderRadius:8}}>Manager access is temporarily disabled</div>}
             {!managerDisabled&&<div style={{height:12,marginBottom:8}}/>}
             <input type="password" inputMode="numeric" maxLength={6} value={pinInput} autoFocus
-              onChange={e=>{setPinInput(e.target.value);setPinError(false);}}
+              onChange={e=>{setPinInput(e.target.value);setPinError("");}}
               onKeyDown={e=>e.key==="Enter"&&submitPin()}
               placeholder="••••"
               className="field" style={{height:60,fontSize:28,textAlign:"center",letterSpacing:"0.35em",marginBottom:8,borderRadius:16,...(pinError?{borderColor:"var(--danger)",animation:"shake .35s var(--ease)"}:{})}}/>
-            {pinError&&<div style={{fontSize:13,color:"var(--danger)",marginBottom:12}}>Incorrect PIN, try again</div>}
+            {pinError&&<div role="alert" style={{fontSize:13,color:"var(--danger)",marginBottom:12,lineHeight:1.4}}>{pinError}</div>}
             {!pinError&&<div style={{height:20,marginBottom:12}}/>}
             <div style={{display:"flex",gap:10}}>
-              <button onClick={()=>{setShowPinModal(false);setPinInput("");setPinError(false);}} className="press" style={{...ACTION_BTN("var(--muted)"),flex:1,minHeight:48,fontSize:15}}>Cancel</button>
-              <button onClick={submitPin} className="press" style={{...ACTION_BTN("var(--brand-ink)","var(--brand)"),flex:2,minHeight:48,fontSize:15,fontWeight:700}}>Unlock</button>
+              <button onClick={()=>{setShowPinModal(false);setPinInput("");setPinError("");}} className="press" style={{...ACTION_BTN("var(--muted)"),flex:1,minHeight:48,fontSize:15}}>Cancel</button>
+              <button onClick={submitPin} disabled={pinBusy} className="press" style={{...ACTION_BTN("var(--brand-ink)","var(--brand)"),flex:2,minHeight:48,fontSize:15,fontWeight:700,opacity:pinBusy?.6:1}}>{pinBusy?"Checking…":"Unlock"}</button>
             </div>
           </div>
         </div>
@@ -4098,7 +4146,7 @@ export default function App(){
       <PageErrorBoundary key={page+"|"+(selectedCategory?.key||"")} isDark={isDark}>
       {page==="pricing"&&(
         selectedCategory
-          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>goBack(()=>{setSelectedCategory(null);setScrollToItem(null);})} onSwitchCategory={c=>{navReplace.current=true;setSelectedCategory(c);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
+          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>goBack(()=>{setSelectedCategory(null);setScrollToItem(null);})} onSwitchCategory={c=>{navReplace.current=true;setSelectedCategory(c);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
           :<HomeGrid items={items} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef} bannerOffset={bannerOffset} onDevUnlock={()=>setShowPinModal(true)}/>
       )}
       {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours} presetList={presetList} bannerOffset={bannerOffset}/>}
@@ -4107,7 +4155,7 @@ export default function App(){
       {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager} isDev={isDev}/>}
       {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"var(--bg)",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} onAuditRemove={id=>setAuditLog(prev=>{const next=prev.filter(e=>e.id!==id);try{localStorage.setItem("audit_log",JSON.stringify(next));}catch{}return next;})} managerPin={managerPin} onManagerPinChange={saveManagerPin} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} presetList={presetList} onPresetListChange={l=>{setPresetList(l);saveShiftPresetList(l);}} setItems={setItems} items={items} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)}  managerPin={managerPin} onManagerPinChange={saveManagerPin} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} presetList={presetList} onPresetListChange={l=>{setPresetList(l);saveShiftPresetList(l);}} setItems={setItems} items={items} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
       </PageErrorBoundary>
       <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
       <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
