@@ -96,6 +96,7 @@ const DEV_TABS=[{id:"settings",label:"Settings",icon:"settings"},{id:"items",lab
 const DEV_CARD={background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:16,marginBottom:14,boxShadow:"var(--shadow)"};
 const DEV_TITLE={fontSize:15,fontWeight:700,color:"var(--text)",letterSpacing:"-0.01em",marginBottom:3};
 const DEV_DESC={fontSize:12.5,color:"var(--muted)",marginBottom:12,lineHeight:1.5};
+const NOTIF_LABEL={fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7};
 const DEV_H={fontSize:14,fontWeight:700,color:"var(--text)",margin:"4px 2px 10px"};
 const DT={appBg:"var(--bg)",headerBg:"var(--bg)",cardBg:"var(--surface)",cardBorder:"var(--border)",accent:"#0b87a6",accentDim:"#0b87a622",accentText:"#ffffff",text:"var(--text)",subText:"var(--muted)",inputBg:"var(--surface-2)",inputBorder:"var(--border)",green:"#16a34a",red:"#e5484d"};
 
@@ -280,6 +281,10 @@ const ICONS={
   user:'<circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/>',
   expand:'<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" x2="14" y1="3" y2="10"/><line x1="3" x2="10" y1="21" y2="14"/>',
   // category + console icons (Lucide)
+  "megaphone":'<path d="m3 11 18-5v12L3 14v-3z" /><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6" />',
+  "circle-alert":'<circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" />',
+  "triangle-alert":'<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" />',
+  "circle-check":'<circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" />',
   "beer":'<path d="M17 11h1a3 3 0 0 1 0 6h-1" /><path d="M9 12v6" /><path d="M13 12v6" /><path d="M14 7.5c-1 0-1.44.5-3 .5s-2-.5-3-.5-1.72.5-2.5.5a2.5 2.5 0 0 1 0-5c.78 0 1.57.5 2.5.5S9.44 2 11 2s2 1.5 3 1.5 1.72-.5 2.5-.5a2.5 2.5 0 0 1 0 5c-.78 0-1.5-.5-2.5-.5Z" /><path d="M5 8v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" />',
   "cup-soda":'<path d="m6 8 1.75 12.28a2 2 0 0 0 2 1.72h4.54a2 2 0 0 0 2-1.72L18 8" /><path d="M5 8h14" /><path d="M7 15a6.47 6.47 0 0 1 5 0 6.47 6.47 0 0 0 5 0" /><path d="m12 8 1-6h2" />',
   "candy":'<path d="m9.5 7.5-2 2a4.95 4.95 0 1 0 7 7l2-2a4.95 4.95 0 1 0-7-7Z" /><path d="M14 6.5v10" /><path d="M10 7.5v10" /><path d="m16 7 1-5 1.37.68A3 3 0 0 0 19.7 3H21v1.3c0 .46.1.92.32 1.33L22 7l-5 1" /><path d="m8 17-1 5-1.37-.68A3 3 0 0 0 4.3 21H3v-1.3a3 3 0 0 0-.32-1.33L2 17l5-1" />',
@@ -1952,49 +1957,51 @@ function DevNewspaperMerge({items,setItems}){
 
 // ── DevPage ───────────────────────────────────────────────────────────────────
 // ── Notification Banner ───────────────────────────────────────────────────────
+// Banner colours: one mid-tone each, readable on both themes (old saved banners keep their colour key)
 const NOTIF_COLORS={
-  blue:  {label:"Blue",   bg:"#0d2540",border:"#2a6aaa",text:"#7ab8f5",dot:"#4a9af0",   bubble:"#4a9af0"},
-  green: {label:"Green",  bg:"#0a2a0a",border:"#1a6a1a",text:"#4aaa4a",dot:"#27ae60",   bubble:"#27ae60"},
-  yellow:{label:"Yellow", bg:"#2a2200",border:"#6a5500",text:"#f0c040",dot:"#f0c040",   bubble:"#f0c040"},
-  red:   {label:"Red",    bg:"#2a0a0a",border:"#6a1a1a",text:"#e07070",dot:"#e74c3c",   bubble:"#e74c3c"},
-  purple:{label:"Purple", bg:"#1a0a2a",border:"#4a1a6a",text:"#b070f0",dot:"#9b59b6",   bubble:"#9b59b6"},
-  orange:{label:"Orange", bg:"#2a1400",border:"#6a3000",text:"#e09040",dot:"#e67e22",   bubble:"#e67e22"},
-  teal:  {label:"Teal",   bg:"#0a2424",border:"#1a6060",text:"#40c0c0",dot:"#00b4d8",   bubble:"#00b4d8"},
-  pink:  {label:"Pink",   bg:"#2a0a1a",border:"#6a1a4a",text:"#f070b0",dot:"#e84393",   bubble:"#e84393"},
+  blue:{label:"Blue",c:"#4f7df0"}, green:{label:"Green",c:"#2fa866"}, yellow:{label:"Yellow",c:"#d9a21b"}, red:{label:"Red",c:"#e5484d"},
+  purple:{label:"Purple",c:"#9b6ae6"}, orange:{label:"Orange",c:"#e5822a"}, teal:{label:"Teal",c:"#1aa5b8"}, pink:{label:"Pink",c:"#e0559c"},
 };
+const notifIcon=color=>color==="red"?"circle-alert":color==="yellow"||color==="orange"?"triangle-alert":color==="green"?"circle-check":"megaphone";
+const notifKey=n=>n?`${n.message}|${n.expiresAt||""}`:"";
+function fmtLeft(s){
+  if(s<=0)return "Ending now";
+  const h=Math.floor(s/3600),m=Math.floor(s%3600/60);
+  return h?`Ends in ${h}h ${m}m`:m?`Ends in ${m}m`:`Ends in ${s}s`;
+}
 
-function NotifBanner({notif,onExpire}){
-  const col=NOTIF_COLORS[notif.color]||NOTIF_COLORS.blue;
-  const expiresAt=notif.expiresAt?new Date(notif.expiresAt):null;
-  const calcLeft=()=>expiresAt?Math.max(0,Math.floor((expiresAt-new Date())/1000)):null;
-  const [timeLeft,setTimeLeft]=useState(calcLeft);
-
+// Floating card under the top edge: icon, message, time left with a draining bar, and a close button for this viewer
+function NotifBanner({notif,onExpire,onDismiss,icon,preview=false}){
+  const c=(NOTIF_COLORS[notif.color]||NOTIF_COLORS.blue).c;
+  const end=notif.expiresAt?new Date(notif.expiresAt).getTime():null, start=notif.startsAt?new Date(notif.startsAt).getTime():null;
+  const [now,setNow]=useState(Date.now());
+  const [leaving,setLeaving]=useState(false);
   useEffect(()=>{
-    if(!expiresAt)return;
-    const iv=setInterval(()=>{
-      const s=calcLeft();
-      setTimeLeft(s);
-      if(s<=0){onExpire&&onExpire();clearInterval(iv);}
-    },1000);
+    if(!end)return;
+    const iv=setInterval(()=>{const t=Date.now();setNow(t);if(t>=end&&!preview){clearInterval(iv);onExpire&&onExpire();}},1000);
     return()=>clearInterval(iv);
-  },[]);
-
-  function fmtTime(s){
-    if(s===null||s===undefined)return"";
-    if(s<=0)return"Expired";
-    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
-    if(h>0)return`${h}h ${m}m remaining`;
-    if(m>0)return`${m}m ${sec}s remaining`;
-    return`${sec}s remaining`;
-  }
-
+  },[end]);
+  const left=end?Math.max(0,Math.round((end-now)/1000)):null;
+  const frac=end&&start&&end>start?Math.max(0,Math.min(1,(end-now)/(end-start))):null;
   return(
-    <div style={{background:col.bg,borderBottom:`2px solid ${col.border}`,padding:"9px 16px",animation:"bannerSlide 0.35s var(--ease-out)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <div style={{width:8,height:8,borderRadius:"50%",background:col.dot,flexShrink:0,boxShadow:`0 0 8px ${col.dot}88`}}/>
-        <span style={{fontSize:12,fontWeight:600,color:col.text,flex:1}}>{notif.message}</span>
-        {timeLeft!==null&&<span style={{fontSize:10,color:col.text,opacity:0.65,flexShrink:0,fontFamily:"inherit"}}>{fmtTime(timeLeft)}</span>}
+    <div role={preview?undefined:"status"} style={{margin:preview?0:"calc(8px + env(safe-area-inset-top)) 10px 6px",position:"relative",overflow:"hidden",
+      borderRadius:16,border:`1px solid ${c}55`,background:`linear-gradient(${c}24,${c}24),var(--surface)`,boxShadow:preview?"none":"var(--shadow-lg)",
+      transition:"opacity .22s var(--ease), transform .22s var(--ease)",opacity:leaving?0:1,transform:leaving?"translateY(-10px) scale(.98)":"none",
+      animation:preview?"none":"bannerDrop .45s var(--ease-out)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:11,padding:"10px 8px 10px 11px"}}>
+        <span style={{width:32,height:32,borderRadius:10,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:`${c}2e`,color:c}}>
+          <Icon name={icon||notifIcon(notif.color)} size={17} stroke={2.2}/>
+        </span>
+        <div style={{flex:1,minWidth:0,paddingRight:onDismiss?0:4}}>
+          <div style={{fontSize:14,fontWeight:600,color:"var(--text)",lineHeight:1.35,overflowWrap:"anywhere"}}>{notif.message}</div>
+          {left!==null&&<div style={{fontSize:12,color:"var(--muted)",marginTop:1,fontVariantNumeric:"tabular-nums"}}>{fmtLeft(left)}</div>}
+        </div>
+        {onDismiss&&<button aria-label="Hide this message" onClick={()=>{setLeaving(true);setTimeout(onDismiss,220);}} className="press"
+          style={{width:34,height:34,flexShrink:0,borderRadius:10,border:"none",background:"transparent",color:"var(--muted)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+          <Icon name="x" size={17}/>
+        </button>}
       </div>
+      {frac!==null&&<div style={{position:"absolute",left:0,bottom:0,height:3,width:`${frac*100}%`,background:c,opacity:.75,transition:"width 1s linear"}}/>}
     </div>
   );
 }
@@ -2148,88 +2155,68 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
         <div style={DEV_TITLE}>Notification banner</div>
         <div style={DEV_DESC}>A message shown across the top of the app for everyone.</div>
 
-        {/* Active notification */}
         {activeNotif?(
-          <div style={{background:DT.cardBg,border:`2px solid ${NOTIF_COLORS[activeNotif.color]?.border||DT.cardBorder}`,borderRadius:10,padding:14,marginBottom:10}}>
-            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-              <div style={{width:8,height:8,borderRadius:"50%",background:NOTIF_COLORS[activeNotif.color]?.dot||DT.accent,boxShadow:`0 0 6px ${NOTIF_COLORS[activeNotif.color]?.dot||DT.accent}`}}/>
-              <span style={{fontSize:12,fontWeight:600,color:NOTIF_COLORS[activeNotif.color]?.text||DT.text,flex:1}}>{activeNotif.message}</span>
-            </div>
-            <div style={{fontSize:10,color:DT.subText,marginBottom:10}}>
-              {activeNotif.expiresAt?`Ends at ${new Date(activeNotif.expiresAt).toLocaleTimeString()}`:"Stays up until removed"}
-            </div>
-            <button onClick={()=>{onNotifChange&&onNotifChange(null);saveActiveNotif(null);}}
-              style={{width:"100%",padding:"8px",background:"#e5484d15",border:"1px solid #e5484d44",borderRadius:10,color:DT.red,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>
-              Remove banner
-            </button>
+          <div style={{marginBottom:12}}>
+            <div style={NOTIF_LABEL}>Showing now</div>
+            <NotifBanner notif={activeNotif} preview/>
+            <button onClick={()=>{onNotifChange&&onNotifChange(null);saveActiveNotif(null);}} className="press"
+              style={{...ACTION_BTN("var(--danger)","var(--danger-soft)"),width:"100%",marginTop:8}}><Icon name="trash" size={16}/>Remove banner</button>
           </div>
         ):(
-          <div style={{fontSize:12,color:DT.subText,padding:"6px 0 10px"}}>No banner showing</div>
+          <div style={{fontSize:13,color:"var(--muted)",padding:"2px 0 12px"}}>No banner is showing.</div>
         )}
 
-        {/* New notification form */}
-        <button onClick={()=>setShowNotifForm(v=>!v)}
-          style={{width:"100%",padding:"9px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",marginBottom:showNotifForm?10:20}}>
-          {showNotifForm?"Cancel":"New banner"}
-        </button>
+        {!showNotifForm?(
+          <button onClick={()=>setShowNotifForm(true)} className="press" style={{...ACTION_BTN(DT.accent,`${DT.accent}18`),width:"100%"}}>
+            <Icon name="plus" size={16}/>{activeNotif?"Replace with a new banner":"New banner"}
+          </button>
+        ):(
+          <div style={{borderTop:"1px solid var(--border)",paddingTop:14,animation:"slideDown .2s var(--ease)"}}>
+            <div style={NOTIF_LABEL}>Message</div>
+            <input value={notifMsg} onChange={e=>setNotifMsg(e.target.value)} maxLength={140} placeholder="e.g. Inventory count today, scan before shelving" className="field" style={{marginBottom:14}}/>
 
-        {showNotifForm&&(
-          <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:20,animation:"slideDown 0.2s ease"}}>
-            {/* Message */}
-            <div style={{fontSize:10,color:DT.subText,marginBottom:5}}>message</div>
-            <input value={notifMsg} onChange={e=>setNotifMsg(e.target.value)}
-              placeholder="e.g. Inventory check in progress..."
-              style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:12}}/>
-
-            {/* Color picker */}
-            <div style={{fontSize:10,color:DT.subText,marginBottom:8}}>color</div>
-            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+            <div style={NOTIF_LABEL}>Colour</div>
+            <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:14}}>
               {Object.entries(NOTIF_COLORS).map(([key,col])=>(
-                <button key={key} onClick={()=>setNotifColor(key)}
-                  title={col.label}
-                  style={{width:26,height:26,borderRadius:"50%",background:col.bubble,border:`2px solid ${notifColor===key?"#fff":"transparent"}`,cursor:"pointer",boxShadow:notifColor===key?`0 0 8px ${col.bubble}88`:"none",transition:"all 0.15s",transform:notifColor===key?"scale(1.2)":"scale(1)"}}/>
-              ))}
-            </div>
-
-            {/* Duration */}
-            <div style={{fontSize:10,color:DT.subText,marginBottom:5}}>duration (minutes — leave blank for permanent)</div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
-              {[{label:"15m",val:"15"},{label:"30m",val:"30"},{label:"1h",val:"60"},{label:"2h",val:"120"},{label:"4h",val:"240"},{label:"∞",val:""}].map(opt=>(
-                <button key={opt.val} onClick={()=>setNotifDuration(opt.val)}
-                  style={{padding:"5px 10px",borderRadius:10,border:`1px solid ${notifDuration===opt.val?DT.accent:DT.cardBorder}`,background:notifDuration===opt.val?`${DT.accent}20`:"transparent",color:notifDuration===opt.val?DT.accent:DT.subText,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
-                  {opt.label}
+                <button key={key} onClick={()=>setNotifColor(key)} aria-label={col.label} aria-pressed={notifColor===key} title={col.label} className="press"
+                  style={{width:30,height:30,borderRadius:"50%",background:col.c,cursor:"pointer",border:"none",
+                    boxShadow:notifColor===key?`0 0 0 2px var(--surface),0 0 0 4px ${col.c}`:"none",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff"}}>
+                  {notifColor===key&&<Icon name="check" size={15} stroke={3}/>}
                 </button>
               ))}
-              <input value={notifDuration} onChange={e=>setNotifDuration(e.target.value)}
-                placeholder="custom"
-                style={{width:60,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:10,padding:"5px 8px",color:DT.text,fontSize:11,fontFamily:"inherit",textAlign:"center"}}/>
-              <span style={{display:"flex",alignItems:"center",fontSize:11,color:DT.subText}}>min</span>
             </div>
 
-            {/* Preview */}
-            {notifMsg.trim()&&(
-              <div style={{background:NOTIF_COLORS[notifColor]?.bg||"#0d2540",border:`1px solid ${NOTIF_COLORS[notifColor]?.border||DT.cardBorder}`,borderRadius:8,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
-                <div style={{width:7,height:7,borderRadius:"50%",background:NOTIF_COLORS[notifColor]?.dot||DT.accent,flexShrink:0}}/>
-                <span style={{fontSize:12,color:NOTIF_COLORS[notifColor]?.text||DT.text,flex:1}}>{notifMsg}</span>
-                {notifDuration&&<span style={{fontSize:10,color:NOTIF_COLORS[notifColor]?.text||DT.text,opacity:0.6,fontFamily:"inherit"}}>{notifDuration}m</span>}
-              </div>
-            )}
+            <div style={NOTIF_LABEL}>Show for</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14,alignItems:"center"}}>
+              {[{label:"15 min",val:"15"},{label:"30 min",val:"30"},{label:"1 hr",val:"60"},{label:"2 hr",val:"120"},{label:"4 hr",val:"240"},{label:"Until removed",val:""}].map(opt=>(
+                <button key={opt.label} onClick={()=>setNotifDuration(opt.val)} className="press" style={{...chipStyle(notifDuration===opt.val,DT.accent,"#fff"),height:32}}>{opt.label}</button>
+              ))}
+              <span style={{display:"inline-flex",alignItems:"center",gap:6,fontSize:13,color:"var(--muted)"}}>
+                <input value={notifDuration} onChange={e=>setNotifDuration(e.target.value.replace(/[^0-9]/g,""))} inputMode="numeric" placeholder="Other" aria-label="Minutes"
+                  className="field" style={{width:70,height:32,padding:"0 8px",fontSize:13,textAlign:"center"}}/>min
+              </span>
+            </div>
 
-            <button onClick={()=>{
-              if(!notifMsg.trim())return;
-              const mins=notifDuration?parseInt(notifDuration):null;
-              const expiresAt=mins?new Date(Date.now()+mins*60*1000).toISOString():null;
-              const n={message:notifMsg.trim(),color:notifColor,expiresAt};
-              onNotifChange&&onNotifChange(n);
-              saveActiveNotif(n);
-              setNotifMsg("");setShowNotifForm(false);
-            }} style={{width:"100%",padding:"9px",background:`${DT.accent}20`,border:`1px solid ${DT.accent}44`,borderRadius:10,color:DT.accent,fontSize:13,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-              Show banner
-            </button>
+            <div style={NOTIF_LABEL}>Preview</div>
+            <div style={{marginBottom:14}}>
+              <NotifBanner preview notif={{message:notifMsg.trim()||"Your message will look like this",color:notifColor,
+                ...(notifDuration?{startsAt:new Date().toISOString(),expiresAt:new Date(Date.now()+parseInt(notifDuration)*60000).toISOString()}:{})}}/>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 2fr",gap:8}}>
+              <button onClick={()=>{setShowNotifForm(false);setNotifMsg("");}} className="press" style={ACTION_BTN("var(--muted)")}>Cancel</button>
+              <button disabled={!notifMsg.trim()} onClick={()=>{
+                const mins=notifDuration?parseInt(notifDuration):null;
+                const n={message:notifMsg.trim(),color:notifColor,startsAt:new Date().toISOString(),expiresAt:mins?new Date(Date.now()+mins*60000).toISOString():null};
+                onNotifChange&&onNotifChange(n);
+                saveActiveNotif(n);
+                setNotifMsg("");setShowNotifForm(false);
+              }} className="press" style={{...ACTION_BTN("#fff",DT.accent),fontWeight:700,opacity:notifMsg.trim()?1:.5,cursor:notifMsg.trim()?"pointer":"default"}}>
+                <Icon name="megaphone" size={16}/>Show banner
+              </button>
+            </div>
           </div>
         )}
-
-
         </section>
         </div>}
         {tab==="items"&&<div key="items" style={{animation:"fadeUp .3s var(--ease-out)"}}>
@@ -3762,6 +3749,16 @@ export default function App(){
   const [activeNotif,setActiveNotif]=useState(null);
   const [showMore,setShowMore]=useState(false);
   const [layout,setLayout]=useState(DEFAULT_LAYOUT);
+  // a banner someone closed stays closed on their device (a new or changed banner shows again)
+  const [hiddenNotif,setHiddenNotif]=useState(()=>{try{return localStorage.getItem("notif-hidden")||"";}catch{return "";}});
+  // pick up banners posted from another device without a reload
+  useEffect(()=>{
+    const iv=setInterval(async()=>{
+      try{const n=await fetchActiveNotif();const live=n&&(!n.expiresAt||new Date(n.expiresAt)>new Date())?n:null;
+        setActiveNotif(prev=>JSON.stringify(prev)===JSON.stringify(live)?prev:live);}catch{}
+    },60000);
+    return()=>clearInterval(iv);
+  },[]);
   useEffect(()=>{document.title="Gil's Grocery";},[]);
 
   // Load items and settings from Supabase on mount
@@ -3908,6 +3905,7 @@ export default function App(){
       <style>{`
         @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
         @keyframes popInWobble{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+        @keyframes bannerDrop{from{opacity:0;transform:translateY(-14px) scale(.98)}to{opacity:1;transform:none}}
         @keyframes bannerSlide{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
@@ -3962,14 +3960,11 @@ export default function App(){
       )}
 
       {/* Top banners — measured, and the spacer below pushes every page down by their real height */}
-      <div ref={bannerRef} style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,zIndex:200}}>
-        {managerDisabled&&!isDev&&(
-          <div style={{background:"#e74c3c",padding:"8px 16px",display:"flex",alignItems:"center",gap:8,animation:"bannerSlide 0.3s var(--ease-out)"}}>
-            <Icon name="lock" size={14} style={{color:"#fff"}}/>
-            <span style={{fontSize:12,fontWeight:600,color:"#fff",flex:1}}>Manager permissions are temporarily disabled</span>
-          </div>
-        )}
-        {activeNotif&&!managerDisabled&&<NotifBanner notif={activeNotif} onExpire={()=>{setActiveNotif(null);saveActiveNotif(null);}}/>}
+      <div ref={bannerRef} style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,zIndex:200,background:"var(--bg)"}}>
+        {managerDisabled&&!isDev&&<NotifBanner notif={{message:"Manager permissions are temporarily disabled",color:"red"}} icon="lock"/>}
+        {activeNotif&&!managerDisabled&&notifKey(activeNotif)!==hiddenNotif&&<NotifBanner key={notifKey(activeNotif)} notif={activeNotif}
+          onExpire={()=>{setActiveNotif(null);saveActiveNotif(null);}}
+          onDismiss={()=>{const k=notifKey(activeNotif);setHiddenNotif(k);try{localStorage.setItem("notif-hidden",k);}catch{}}}/>}
       </div>
       <div style={{height:bannerOffset}}/>
 
