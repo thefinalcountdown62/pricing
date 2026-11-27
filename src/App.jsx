@@ -86,7 +86,29 @@ const CATEGORIES = [
 const SEVERITY_LEVELS = ["Low","Medium","High","Critical"];
 const PACK_SIZES      = ["Single","4 Pack","6 Pack","12 Pack","15 Pack","18 Pack","30 Pack"];
 const CONTAINER_TYPES = ["Can","Bottle"];
-const WINE_TYPES      = ["Red","White","Rosé","Sparkling","Other"];
+// Wine: the style groups the list, the varietal is what's on the label. wine_type stores either one
+// (older items just say "Red"); a varietal in the item's name counts too, so "Meiomi Pinot Noir" is a Pinot Noir.
+const WINE_STYLES={
+  Red:["Cabernet Sauvignon","Merlot","Pinot Noir","Malbec","Zinfandel","Syrah / Shiraz","Chianti / Sangiovese","Tempranillo","Red Blend"],
+  White:["Chardonnay","Sauvignon Blanc","Pinot Grigio","Riesling","Moscato","White Blend"],
+  "Rosé":[],
+  Sparkling:["Prosecco","Champagne","Cava"],
+  Other:["Port","Dessert Wine"],
+};
+const WINE_TYPES=Object.keys(WINE_STYLES);
+const VARIETAL_WORDS={"Cabernet Sauvignon":"cabernet","Syrah / Shiraz":"syrah|shiraz","Chianti / Sangiovese":"chianti|sangiovese","Pinot Grigio":"pinot grigio|pinot gris",
+  "Sauvignon Blanc":"sauvignon blanc|sauv blanc","Moscato":"moscato|muscat","Dessert Wine":"dessert|ice ?wine"};
+const VARIETAL_RE=Object.values(WINE_STYLES).flat().map(v=>[v,new RegExp(`\\b(${VARIETAL_WORDS[v]||v.toLowerCase()})\\b`,"i")]);
+function detectVarietal(name){return (VARIETAL_RE.find(([,re])=>re.test(name||""))||[])[0]||"";}
+function styleOfVarietal(v){return WINE_TYPES.find(st=>WINE_STYLES[st].includes(v))||"Other";}
+// {style, varietal} for a wine item
+function wineOf(item){
+  const t=item.wineType||"";
+  if(WINE_STYLES[t]){const v=detectVarietal(item.name);return {style:t,varietal:v&&styleOfVarietal(v)===t?v:""};}
+  if(t)return {style:styleOfVarietal(t),varietal:t};
+  const v=detectVarietal(item.name);return {style:v?styleOfVarietal(v):"Other",varietal:v};
+}
+const wineLabel=item=>{const w=wineOf(item);return w.varietal||w.style;};
 const PACK_SUBS       = ["beer","hard_seltzer","soda"];
 const WINE_SUBS       = ["wine"];
 const AUTO_DEPOSIT    = {"Single":0,"4 Pack":0.20,"6 Pack":0.30,"12 Pack":0.60,"15 Pack":0.75,"18 Pack":0.90,"30 Pack":1.50};
@@ -827,7 +849,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false,canEdit=fal
               if(isLowStock)return <span style={{...TAG,background:"rgba(230,126,34,.13)",color:"#d9731a",fontWeight:600}}>Low stock · {item.inventory} left</span>;
               return null;
             })()}
-            {(()=>{const d=[isPackSub&&item.packSize,isPackSub&&item.containerType,isWineSub&&item.wineType].filter(Boolean);return d.length?<span>{d.join(" · ")}</span>:null;})()}
+            {(()=>{const d=[isPackSub&&item.packSize,isPackSub&&item.containerType,isWineSub&&wineLabel(item)].filter(Boolean);return d.length?<span>{d.join(" · ")}</span>:null;})()}
             {item.location&&<span style={{display:"inline-flex",alignItems:"center",gap:3}}><Icon name="pin" size={13}/>{item.location}</span>}
           </div>
         </div>
@@ -1237,6 +1259,7 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
   const [search,setSearch]=useState("");
   const [filterPack,setFilterPack]=useState("All");
   const [filterContainer,setFilterContainer]=useState("All");
+  const [filterWine,setFilterWine]=useState("All");   // a style ("White") or a varietal ("Chardonnay")
   const [sortBy,setSortBy]=useState("name");
   const [showForm,setShowForm]=useState(false);
   const [editItem,setEditItem]=useState(null);
@@ -1275,25 +1298,26 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
     .filter(i=>i.name.toLowerCase().includes(search.toLowerCase()))
     .filter(i=>filterPack==="All"||!PACK_SUBS.includes(i.subcategory)||i.packSize===filterPack)
     .filter(i=>filterContainer==="All"||!PACK_SUBS.includes(i.subcategory)||i.containerType===filterContainer)
+    .filter(i=>filterWine==="All"||!WINE_SUBS.includes(i.subcategory)||(w=>w.style===filterWine||w.varietal===filterWine)(wineOf(i)))
     .sort((a,b)=>{
       if(sortBy==="type"&&WINE_SUBS.includes(activeSub||"wine")){
-        const ta=WINE_TYPES.indexOf(a.wineType||"Other"),tb=WINE_TYPES.indexOf(b.wineType||"Other");
-        return ta!==tb?ta-tb:a.name.localeCompare(b.name);
+        const wa=wineOf(a),wb=wineOf(b),ta=WINE_TYPES.indexOf(wa.style),tb=WINE_TYPES.indexOf(wb.style);
+        return ta!==tb?ta-tb:(wa.varietal||"~").localeCompare(wb.varietal||"~")||a.name.localeCompare(b.name);
       }
       if(sortBy==="price_desc")return b.price-a.price;
       if(sortBy==="price_asc")return a.price-b.price;
       return a.name.localeCompare(b.name);
     });
 
-  const hasFilters=search||filterPack!=="All"||filterContainer!=="All"||sortBy!=="name";
-  function resetFilters(){setSearch("");setFilterPack("All");setFilterContainer("All");setSortBy("name");}
+  const hasFilters=search||filterPack!=="All"||filterContainer!=="All"||filterWine!=="All"||sortBy!=="name";
+  function resetFilters(){setSearch("");setFilterPack("All");setFilterContainer("All");setFilterWine("All");setSortBy("name");}
 
   function openEdit(item){
     if(!requireManager())return;
     setEditItem(item);
     setForm({name:item.name,dayPrices:(item.dayPrices||[]).map(x=>({days:x.days,price:String(x.price)})),subcategory:item.subcategory,price:String(item.price),location:item.location||"",
       packSize:item.packSize||"6 Pack",containerType:item.containerType||"Can",
-      deposit:item.deposit!=null?String(item.deposit):"",wineType:item.wineType||"Red",
+      deposit:item.deposit!=null?String(item.deposit):"",wineType:(w=>w.varietal||w.style)(wineOf(item)),
       inventory:item.inventory!=null?String(item.inventory):"",
       notes:item.notes||"",
       outOfStock:item.outOfStock||false,
@@ -1307,7 +1331,9 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
   function handleAddClick(action){
     if(action==="cancel"){setShowForm(false);setEditItem(null);setForm(emptyForm);setMapOpen(false);return;}
     if(!requireManager())return;
-    setEditItem(null);setForm(emptyForm);setMapOpen(false);setShowForm(true);
+    // start in the subcategory being viewed (adding from the Wine tab makes a wine)
+    const sub=activeSub&&category.subcategories.some(x=>x.key===activeSub)?activeSub:emptyForm.subcategory;
+    setEditItem(null);setForm(sub===emptyForm.subcategory?emptyForm:{...emptyForm,subcategory:sub,...emptyAlcoholForm(sub)});setMapOpen(false);setShowForm(true);
   }
 
   async function handleSave(){
@@ -1330,7 +1356,7 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
     };
     const extra=PACK_SUBS.includes(form.subcategory)
       ?{packSize:form.packSize,containerType:form.containerType,deposit:form.deposit?parseFloat(form.deposit):0}
-      :WINE_SUBS.includes(form.subcategory)?{wineType:form.wineType}:{};
+      :WINE_SUBS.includes(form.subcategory)?{wineType:(()=>{const v=WINE_STYLES[form.wineType]?detectVarietal(form.name):"";return v&&styleOfVarietal(v)===form.wineType?v:form.wineType;})()}:{};
     // Build Supabase row (snake_case)
     const row={
       name:base.name, category:category.key, subcategory:base.subcategory,
@@ -1361,7 +1387,7 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
     ? PACK_SIZES.filter(p=>filtered.some(i=>i.packSize===p)) : null;
   // Wine type groups
   const wineGroups=isAlcohol&&activeSub==="wine"&&sortBy==="type"
-    ? WINE_TYPES.filter(t=>filtered.some(i=>i.wineType===t)) : null;
+    ? WINE_TYPES.filter(t=>filtered.some(i=>wineOf(i).style===t)) : null;
 
   const showPackFilters=isAlcohol&&activeSub&&PACK_SUBS.includes(activeSub);
   const showWineSort=isAlcohol&&activeSub==="wine";
@@ -1452,9 +1478,9 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
 
         {/* Subcategory chips */}
         <div className="chip-row" style={{paddingBottom:10,margin:"0 -14px",padding:"0 14px 10px"}}>
-          <button onClick={()=>{setActiveSub(null);setFilterPack("All");setFilterContainer("All");}} className="press" style={chipStyle(!activeSub,accentColor,T.accentText)}>All</button>
+          <button onClick={()=>{setActiveSub(null);setFilterPack("All");setFilterContainer("All");setFilterWine("All");}} className="press" style={chipStyle(!activeSub,accentColor,T.accentText)}>All</button>
           {category.subcategories.map(sub=>(
-            <button key={sub.key} onClick={()=>{setActiveSub(sub.key===activeSub?null:sub.key);setFilterPack("All");setFilterContainer("All");}} className="press"
+            <button key={sub.key} onClick={()=>{setActiveSub(sub.key===activeSub?null:sub.key);setFilterPack("All");setFilterContainer("All");setFilterWine("All");}} className="press"
               style={chipStyle(activeSub===sub.key,accentColor,T.accentText)}>
               <Icon name={sub.icon} size={15}/>{sub.name}
             </button>
@@ -1476,7 +1502,7 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
                 <option value="price_desc">Price ↓</option>
               </select>
             </div>
-            {(showPackFilters||hasFilters)&&(
+            {(showPackFilters||showWineSort||hasFilters)&&(
               <div style={{display:"flex",gap:6,marginTop:8}}>
                 {showPackFilters&&<>
                   <select value={filterPack} onChange={e=>setFilterPack(e.target.value)} aria-label="Pack size" className="field" style={{flex:1,height:38,fontSize:13,padding:"0 8px"}}>
@@ -1486,6 +1512,18 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
                     <option value="All">Can & bottle</option>{CONTAINER_TYPES.map(c=><option key={c} value={c}>{c}</option>)}
                   </select>
                 </>}
+                {showWineSort&&(()=>{
+                  const wines=items.filter(i=>i.category===category.key&&WINE_SUBS.includes(i.subcategory)).map(wineOf);
+                  return <select value={filterWine} onChange={e=>setFilterWine(e.target.value)} aria-label="Wine type" className="field" style={{flex:1,height:38,fontSize:13,padding:"0 8px"}}>
+                    <option value="All">All wines</option>
+                    {WINE_TYPES.filter(st=>wines.some(w=>w.style===st)).map(st=>(
+                      <optgroup key={st} label={st}>
+                        <option value={st}>All {st.toLowerCase()}</option>
+                        {[...new Set(wines.filter(w=>w.style===st&&w.varietal).map(w=>w.varietal))].sort().map(v=><option key={v} value={v}>{v}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>;
+                })()}
                 {hasFilters&&<button onClick={resetFilters} className="press" style={{...chipStyle(false),height:38}}><Icon name="x" size={14}/>Reset</button>}
               </div>
             )}
@@ -1573,11 +1611,24 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
             {WINE_SUBS.includes(form.subcategory)&&(
               <div style={{marginBottom:10}}>
                 <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Wine Type</div>
-                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
-                  {WINE_TYPES.map(w=>(
-                    <button key={w} onClick={()=>setForm(f=>({...f,wineType:w}))} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${form.wineType===w?accentColor:T.border}`,background:form.wineType===w?accentColor:"transparent",color:form.wineType===w?T.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:form.wineType===w?700:400}}>{w}</button>
-                  ))}
-                </div>
+                {(()=>{
+                  const style=WINE_STYLES[form.wineType]?form.wineType:styleOfVarietal(form.wineType);
+                  const chip=(on,label,onClick,small)=>(
+                    <button key={label} onClick={onClick} className="press" style={{padding:small?"5px 10px":"6px 12px",borderRadius:8,border:`1px solid ${on?accentColor:T.border}`,
+                      background:on?accentColor:"transparent",color:on?T.accentText:baseT.sub,fontSize:small?12:12.5,cursor:"pointer",fontFamily:"inherit",fontWeight:on?700:500}}>{label}</button>);
+                  const guess=WINE_STYLES[form.wineType]?detectVarietal(form.name):"";
+                  return <>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                      {WINE_TYPES.map(st=>chip(style===st,st,()=>setForm(f=>({...f,wineType:st}))))}
+                    </div>
+                    {WINE_STYLES[style].length>0&&<div style={{marginTop:8,padding:"8px 10px",background:"var(--surface-2)",borderRadius:10}}>
+                      <div style={{fontSize:11,color:baseT.sub,marginBottom:6}}>Varietal <span style={{opacity:.7}}>(optional{guess&&styleOfVarietal(guess)===style?`, "${guess}" from the name`:""})</span></div>
+                      <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                        {WINE_STYLES[style].map(v=>chip(form.wineType===v,v,()=>setForm(f=>({...f,wineType:f.wineType===v?style:v})),true))}
+                      </div>
+                    </div>}
+                  </>;
+                })()}
               </div>
             )}
             <div style={{display:"flex",gap:8,marginBottom:PACK_SUBS.includes(form.subcategory)?10:12}}>
@@ -1755,7 +1806,7 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
           )) : wineGroups ? wineGroups.map(type=>(
             <div key={type} style={{animation:"fadeUp 0.25s ease both"}}>
               <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:accentColor,margin:"18px 0 8px",opacity:0.8}}>{type}</div>
-              {filtered.filter(i=>i.wineType===type).map((item,idx)=>renderItem(item,idx))}
+              {filtered.filter(i=>wineOf(i).style===type).map((item,idx)=>renderItem(item,idx))}
             </div>
           )) : !activeSub ? category.subcategories.map(sub=>{
             const subItems=filtered.filter(i=>i.subcategory===sub.key);
