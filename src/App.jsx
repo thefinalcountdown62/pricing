@@ -2039,7 +2039,7 @@ function StoreBuilderPanel({layout,onSave}){
   return <div ref={ref} style={{marginBottom:24}}/>;
 }
 
-function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
+function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,presetList=[],onPresetListChange,setItems,items=[],activeNotif,onNotifChange,layout=DEFAULT_LAYOUT,onLayoutSave}){
   const [showBuilder,setShowBuilder]=useState(false);
   const [tab,setTab]=useState(()=>{try{return sessionStorage.getItem("dev-tab")||"settings";}catch{return "settings";}});
   function pickTab(t){setTab(t);window.scrollTo(0,0);try{sessionStorage.setItem("dev-tab",t);}catch{}}
@@ -2068,7 +2068,7 @@ function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,auditLog=[],ta
   const [taxRateSaved,setTaxRateSaved]=useState(false);
   const [confirmDisable,setConfirmDisable]=useState(false);
   const [pinShown,setPinShown]=useState(false);
-  const [undone,setUndone]=useState(()=>new Set());
+  const [undoFx,setUndoFx]=useState({}); // entry id -> {phase:"spread"|"leave"|"error", x, y}
   const [pinForm,setPinForm]=useState(false);
   const [newPin,setNewPin]=useState(""),[newPin2,setNewPin2]=useState("");
   const [pinMsg,setPinMsg]=useState(""),[pinBusy,setPinBusy]=useState(false);
@@ -2298,9 +2298,13 @@ function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,auditLog=[],ta
             const t=new Date(entry.timestamp);
             const when=isNaN(t)?"":t.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+(t.toDateString()!==new Date().toDateString()?` · ${t.toLocaleDateString([],{month:"short",day:"numeric"})}`:"");
             const changes=entry.action==="edited"?auditChanges(entry.snapshot,entry.after,layout.zones):null;
-            const canUndo=entry.action==="edited"&&entry.snapshot&&entry.snapshot.id&&!undone.has(entry.id)&&(!changes||changes.length>0);
+            const fx=undoFx[entry.id];
+            const canUndo=entry.action==="edited"&&entry.snapshot&&entry.snapshot.id&&!undoFx[entry.id]?.phase?.match(/spread|leave/)&&(!changes||changes.length>0);
             return(
-              <div key={entry.id} style={{...DEV_CARD,padding:"12px 14px",marginBottom:10,borderLeft:`3px solid ${tone}`,animation:`fadeUp .3s var(--ease-out) ${i*0.03}s both`}}>
+              // undone: green floods out from the button, a check pops in, then the card folds away
+              <div key={entry.id} style={{display:"grid",gridTemplateRows:fx?.phase==="leave"?"0fr":"1fr",opacity:fx?.phase==="leave"?0:1,transition:"grid-template-rows .42s var(--ease), opacity .3s var(--ease)"}}>
+              <div style={{minHeight:0,overflow:"hidden"}}>
+              <div data-audit style={{...DEV_CARD,padding:"12px 14px",marginBottom:10,borderLeft:`3px solid ${tone}`,position:"relative",overflow:"hidden",animation:`fadeUp .3s var(--ease-out) ${i*0.03}s both`}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
                     <span style={{...TAG,background:`color-mix(in srgb, ${tone} 15%, transparent)`,color:tone,fontWeight:700}}>{entry.action==="added"?"Added":entry.action==="deleted"?"Deleted":"Edited"}</span>
@@ -2326,18 +2330,35 @@ function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,auditLog=[],ta
                         </Fragment>
                       ))}
                     </div>)}
-                {undone.has(entry.id)&&<div style={{fontSize:12.5,color:"var(--success)",marginTop:8,display:"flex",alignItems:"center",gap:5}}><Icon name="check" size={14}/>Undone</div>}
+                {fx?.phase==="error"&&<div role="alert" style={{fontSize:12.5,color:"var(--danger)",marginTop:8}}>Couldn't undo. Check your connection and try again.</div>}
                 {canUndo&&(
-                  <button onClick={async()=>{
+                  <button onClick={async e=>{
+                    const card=e.currentTarget.closest("[data-audit]").getBoundingClientRect(), btn=e.currentTarget.getBoundingClientRect();
+                    const x=`${((btn.left+btn.width/2-card.left)/card.width*100).toFixed(1)}%`, y=`${((btn.top+btn.height/2-card.top)/card.height*100).toFixed(1)}%`;
                     const s=entry.snapshot;
                     const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,taxable:s.taxable||false,gillies_recommendation:s.gilliesRecommendation||false,
                       ...(entry.after?{day_prices:s.dayPrices?.length?JSON.stringify(s.dayPrices):null}:{})};
                     const {error}=await sb.from("items").update(row).eq("id",s.id);
-                    if(!error){setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));setUndone(u=>new Set(u).add(entry.id));}
+                    if(error){setUndoFx(f=>({...f,[entry.id]:{phase:"error"}}));return;}
+                    setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));
+                    setUndoFx(f=>({...f,[entry.id]:{phase:"spread",x,y}}));
+                    setTimeout(()=>setUndoFx(f=>({...f,[entry.id]:{...f[entry.id],phase:"leave"}})),1500);
+                    setTimeout(()=>{onAuditRemove&&onAuditRemove(entry.id);setUndoFx(f=>{const n={...f};delete n[entry.id];return n;});},1950);
                   }} className="press" style={{...ACTION_BTN("var(--brand)","var(--brand-soft)"),width:"100%",marginTop:10,minHeight:40,fontSize:13.5}}>
                     <Icon name="history" size={15}/>Undo this edit
                   </button>
                 )}
+                {fx&&fx.phase!=="error"&&(
+                  <div aria-hidden="true" style={{position:"absolute",inset:0,background:"var(--success)","--ux":fx.x,"--uy":fx.y,animation:"undoSpread .7s cubic-bezier(.45,0,.2,1) both"}}>
+                    <span style={{position:"absolute",left:"50%",top:"50%",width:56,height:56,margin:"-28px 0 0 -28px",borderRadius:"50%",background:"#fff",color:"#1d8048",
+                      display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 24px rgba(0,0,0,.2)",animation:"checkBounce .75s ease-out .38s both"}}>
+                      <Icon name="check" size={30} stroke={3}/>
+                    </span>
+                  </div>
+                )}
+                {fx&&fx.phase!=="error"&&<span role="status" style={{position:"absolute",width:1,height:1,overflow:"hidden",clip:"rect(0 0 0 0)"}}>Edit undone</span>}
+              </div>
+              </div>
               </div>
             );
           })
@@ -3984,6 +4005,8 @@ export default function App(){
       <style>{`
         @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
         @keyframes popInWobble{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+        @keyframes undoSpread{from{clip-path:circle(0% at var(--ux,50%) var(--uy,50%))}to{clip-path:circle(150% at var(--ux,50%) var(--uy,50%))}}
+        @keyframes checkBounce{0%{transform:scale(0) rotate(-25deg);opacity:0}50%{transform:scale(1.22) rotate(6deg);opacity:1}70%{transform:scale(.9) rotate(-2deg)}85%{transform:scale(1.05)}100%{transform:scale(1) rotate(0)}}
         @keyframes bannerDrop{from{opacity:0;transform:translateY(-14px) scale(.98)}to{opacity:1;transform:none}}
         @keyframes bannerSlide{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -4083,7 +4106,7 @@ export default function App(){
       {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager} isDev={isDev}/>}
       {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"var(--bg)",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} managerPin={managerPin} onManagerPinChange={saveManagerPin} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} presetList={presetList} onPresetListChange={l=>{setPresetList(l);saveShiftPresetList(l);}} setItems={setItems} items={items} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} onAuditRemove={id=>setAuditLog(prev=>{const next=prev.filter(e=>e.id!==id);try{localStorage.setItem("audit_log",JSON.stringify(next));}catch{}return next;})} managerPin={managerPin} onManagerPinChange={saveManagerPin} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} presetList={presetList} onPresetListChange={l=>{setPresetList(l);saveShiftPresetList(l);}} setItems={setItems} items={items} activeNotif={activeNotif} onNotifChange={setActiveNotif} layout={layout} onLayoutSave={saveLayout}/>}
       </PageErrorBoundary>
       <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
       <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
