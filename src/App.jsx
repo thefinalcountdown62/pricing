@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext, Component } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext, Component, Fragment } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@supabase/supabase-js";
 import { layoutFeet, findDoor, routeTo, arrowsAlong } from "./route.js";
@@ -1316,6 +1316,7 @@ function CategoryPage({category,items,setItems,onBack,onSwitchCategory,isManager
       role:isDev?"Developer":"Manager",
       // snapshot for undo: previous item state (for edits) or item id (for adds/deletes)
       snapshot:action==="edited"?editItem:null,
+      after:action==="edited"?{...editItem,...base,...extra}:null,
       itemId:action==="edited"?editItem?.id:null,
       categoryKey:category.key,
     });
@@ -1956,6 +1957,24 @@ function DevNewspaperMerge({items,setItems}){
   );
 }
 
+// Field-by-field differences between an item before and after an edit: [{label, from, to}]
+function auditChanges(a,b,zones){
+  if(!a||!b)return null;
+  const money=v=>v==null||v===""?"":`$${(+v).toFixed(2)}`;
+  const yes=v=>v?"Yes":"No";
+  const sub=k=>CATEGORIES.flatMap(c=>c.subcategories).find(x=>x.key===k)?.name||k||"";
+  const zone=k=>k?(findZone(zones,k)?.label||k):"";
+  const days=o=>priceSchedule(o).map(x=>`${daysLabel(x.days)} $${x.price.toFixed(2)}`).join(", ");
+  const F=[
+    ["Name",o=>o.name||""],["Price",o=>money(o.price)],["Day prices",o=>days(o)],["Subcategory",o=>sub(o.subcategory)],
+    ["Pack size",o=>o.packSize||""],["Container",o=>o.containerType||""],["Wine type",o=>o.wineType||""],
+    ["Deposit",o=>+o.deposit?money(o.deposit):""],["Sales tax",o=>o.taxable?"On":"Off"],
+    ["Location",o=>o.location||""],["Map pin",o=>zone(o.mapZone)],["Stock",o=>o.inventory==null||o.inventory===""?"":String(o.inventory)],
+    ["Out of stock",o=>yes(o.outOfStock)],["Gillie's pick",o=>yes(o.gilliesRecommendation)],["Expiry",o=>o.expiryDate||""],["Notes",o=>(o.notes||"").trim()],
+  ];
+  return F.map(([label,f])=>({label,from:f(a),to:f(b)})).filter(x=>x.from!==x.to);
+}
+
 // ── DevPage ───────────────────────────────────────────────────────────────────
 // ── Notification Banner ───────────────────────────────────────────────────────
 // Banner colours: one mid-tone each, readable on both themes (old saved banners keep their colour key)
@@ -2049,6 +2068,7 @@ function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,auditLog=[],ta
   const [taxRateSaved,setTaxRateSaved]=useState(false);
   const [confirmDisable,setConfirmDisable]=useState(false);
   const [pinShown,setPinShown]=useState(false);
+  const [undone,setUndone]=useState(()=>new Set());
   const [pinForm,setPinForm]=useState(false);
   const [newPin,setNewPin]=useState(""),[newPin2,setNewPin2]=useState("");
   const [pinMsg,setPinMsg]=useState(""),[pinBusy,setPinBusy]=useState(false);
@@ -2274,34 +2294,48 @@ function DevPage({isDev,onUnlock,managerPin="",onManagerPinChange,auditLog=[],ta
           <div style={{fontSize:12,color:DT.subText,padding:"8px 0"}}>No edits yet this session</div>
         ):(
           auditLog.map((entry,i)=>{
-            const actionColor=entry.action==="added"?DT.green:entry.action==="deleted"?DT.red:"#f0c040";
-            const t=entry.timestamp instanceof Date?entry.timestamp:new Date(entry.timestamp);
-            const timeStr=t?`${t.getHours().toString().padStart(2,"0")}:${t.getMinutes().toString().padStart(2,"0")}:${t.getSeconds().toString().padStart(2,"0")}`:"--:--:--";
-            const canUndo=entry.action==="edited"&&entry.snapshot&&entry.snapshot.id;
+            const tone=entry.action==="added"?"var(--success)":entry.action==="deleted"?"var(--danger)":"var(--brand)";
+            const t=new Date(entry.timestamp);
+            const when=isNaN(t)?"":t.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+(t.toDateString()!==new Date().toDateString()?` · ${t.toLocaleDateString([],{month:"short",day:"numeric"})}`:"");
+            const changes=entry.action==="edited"?auditChanges(entry.snapshot,entry.after,layout.zones):null;
+            const canUndo=entry.action==="edited"&&entry.snapshot&&entry.snapshot.id&&!undone.has(entry.id)&&(!changes||changes.length>0);
             return(
-              <div key={entry.id} style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:8,padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${actionColor}`}}>
-                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:11,fontWeight:700,color:actionColor,textTransform:"uppercase"}}>{entry.action==="added"?"Added":entry.action==="deleted"?"Deleted":"Edited"}</span>
-                    {entry.role&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:`${DT.accent}15`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.role}</span>}
+              <div key={entry.id} style={{...DEV_CARD,padding:"12px 14px",marginBottom:10,borderLeft:`3px solid ${tone}`,animation:`fadeUp .3s var(--ease-out) ${i*0.03}s both`}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
+                    <span style={{...TAG,background:`color-mix(in srgb, ${tone} 15%, transparent)`,color:tone,fontWeight:700}}>{entry.action==="added"?"Added":entry.action==="deleted"?"Deleted":"Edited"}</span>
+                    {entry.role&&<span style={{fontSize:12,color:"var(--muted)"}}>by {entry.role}</span>}
                   </div>
-                  <span style={{fontSize:10,color:DT.subText,fontFamily:"inherit"}}>{timeStr}</span>
+                  <span style={{fontSize:12,color:"var(--muted)",flexShrink:0}}>{when}</span>
                 </div>
-                <div style={{fontSize:13,color:DT.text,fontWeight:600,marginBottom:3}}>{entry.itemName}</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`}}>{entry.category}</span>
-                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.subcategory}</span>
-                  {entry.details&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.details}</span>}
-                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:8,background:"#f0c04015",color:"#f0c040",border:"1px solid #f0c04030"}}>${entry.price?.toFixed(2)}</span>
-                </div>
+                <div style={{fontSize:15,color:"var(--text)",fontWeight:600}}>{entry.itemName}</div>
+                <div style={{fontSize:12.5,color:"var(--muted)",marginBottom:entry.action==="edited"?10:0}}>{[entry.category,entry.subcategory,entry.action!=="edited"&&entry.price!=null&&`$${(+entry.price).toFixed(2)}`].filter(Boolean).join(" · ")}</div>
+                {entry.action==="edited"&&(changes===null
+                  ?<div style={{fontSize:12.5,color:"var(--faint)",fontStyle:"italic"}}>What changed wasn't recorded for this edit (it was made before this update).</div>
+                  :changes.length===0
+                    ?<div style={{fontSize:12.5,color:"var(--muted)"}}>Saved with no changes.</div>
+                    :<div style={{display:"grid",gridTemplateColumns:"auto 1fr",columnGap:12,rowGap:6,background:"var(--surface-2)",borderRadius:10,padding:"9px 11px",fontSize:13}}>
+                      {changes.map(c=>(
+                        <Fragment key={c.label}>
+                          <span style={{color:"var(--muted)",whiteSpace:"nowrap"}}>{c.label}</span>
+                          <span style={{minWidth:0,overflowWrap:"anywhere",color:"var(--text)"}}>
+                            {c.from&&<span style={{color:"var(--faint)",textDecoration:"line-through"}}>{c.from.length>60?c.from.slice(0,60)+"…":c.from}</span>}
+                            {c.from&&<span style={{color:"var(--faint)",margin:"0 6px"}}>→</span>}
+                            <span style={{fontWeight:600}}>{c.to?(c.to.length>60?c.to.slice(0,60)+"…":c.to):<span style={{color:"var(--faint)",fontWeight:400}}>removed</span>}</span>
+                          </span>
+                        </Fragment>
+                      ))}
+                    </div>)}
+                {undone.has(entry.id)&&<div style={{fontSize:12.5,color:"var(--success)",marginTop:8,display:"flex",alignItems:"center",gap:5}}><Icon name="check" size={14}/>Undone</div>}
                 {canUndo&&(
                   <button onClick={async()=>{
                     const s=entry.snapshot;
-                    const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,taxable:s.taxable||false,gillies_recommendation:s.gilliesRecommendation||false};
+                    const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,taxable:s.taxable||false,gillies_recommendation:s.gilliesRecommendation||false,
+                      ...(entry.after?{day_prices:s.dayPrices?.length?JSON.stringify(s.dayPrices):null}:{})};
                     const {error}=await sb.from("items").update(row).eq("id",s.id);
-                    if(!error){setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));}
-                  }} style={{marginTop:6,width:"100%",padding:"5px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:10,color:"#f0c040",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit",textAlign:"center"}}>
-                    Undo this edit
+                    if(!error){setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));setUndone(u=>new Set(u).add(entry.id));}
+                  }} className="press" style={{...ACTION_BTN("var(--brand)","var(--brand-soft)"),width:"100%",marginTop:10,minHeight:40,fontSize:13.5}}>
+                    <Icon name="history" size={15}/>Undo this edit
                   </button>
                 )}
               </div>
@@ -3876,19 +3910,11 @@ export default function App(){
 
 
   function addAuditEntry(entry){
+    const pick=o=>o?{id:o.id,name:o.name,category:o.category,subcategory:o.subcategory,price:o.price,location:o.location,notes:o.notes,
+      inventory:o.inventory,outOfStock:o.outOfStock,mapZone:o.mapZone,expiryDate:o.expiryDate,packSize:o.packSize,containerType:o.containerType,
+      deposit:o.deposit,wineType:o.wineType,gilliesRecommendation:o.gilliesRecommendation,taxable:o.taxable||false,dayPrices:o.dayPrices||[]}:null;
     setAuditLog(prev=>{
-      const snap=entry.snapshot?{
-        id:entry.snapshot.id,name:entry.snapshot.name,category:entry.snapshot.category,
-        subcategory:entry.snapshot.subcategory,price:entry.snapshot.price,
-        location:entry.snapshot.location,notes:entry.snapshot.notes,
-        inventory:entry.snapshot.inventory,outOfStock:entry.snapshot.outOfStock,
-        mapZone:entry.snapshot.mapZone,expiryDate:entry.snapshot.expiryDate,
-        packSize:entry.snapshot.packSize,containerType:entry.snapshot.containerType,
-        deposit:entry.snapshot.deposit,wineType:entry.snapshot.wineType,
-        gilliesRecommendation:entry.snapshot.gilliesRecommendation,
-        taxable:entry.snapshot.taxable||false,
-      }:null;
-      const serialized={...entry,timestamp:entry.timestamp instanceof Date?entry.timestamp.toISOString():entry.timestamp,snapshot:snap};
+      const serialized={...entry,timestamp:entry.timestamp instanceof Date?entry.timestamp.toISOString():entry.timestamp,snapshot:pick(entry.snapshot),after:pick(entry.after)};
       const next=[serialized,...prev].slice(0,10);
       try{localStorage.setItem("audit_log",JSON.stringify(next));}catch{}
       return next;
