@@ -72,12 +72,19 @@ const WALL_H = 9, WALL_T = 0.45, WALL_LOW = 0.7;
 
 // Calm, theme-matched colors for the map (same values the 2D map uses in App.jsx MAP_LOOK)
 export const LOOK = {
-  dark: { bg: "#14171d", floor: "#1e222a", grid: "#2a2f38", wall: "#535b67", body: "#4a515c", base: "#2b3038", metal: "#8d949e",
-          fixL: 0.42, labelBg: "rgba(24,27,34,.9)", labelInk: "#e8eaee", labelLine: "rgba(255,255,255,.08)", hemi: [1.7, "#dfe6f5", "#2a2722"], sun: 2.1 },
-  light: { bg: "#e9e8e3", floor: "#f6f5f1", grid: "#e4e2dc", wall: "#c9c4ba", body: "#a7acb4", base: "#7d838c", metal: "#b9bec6",
-          fixL: 0.66, labelBg: "rgba(255,255,255,.94)", labelInk: "#1c1d20", labelLine: "rgba(0,0,0,.08)", hemi: [2.0, "#ffffff", "#bdb6a8"], sun: 2.3 },
+  // developer Store Builder workspace
+  builder: { bg: "#14171d", floor: "#1e222a", grid: "#2a2f38", wall: "#535b67", body: "#4a515c", base: "#2b3038", metal: "#8d949e",
+          fixL: 0.42, labelBg: "rgba(24,27,34,.9)", labelInk: "#e8eaee", labelLine: "rgba(255,255,255,.08)", hemi: [1.7, "#dfe6f5", "#2a2722"], sun: 2.1, sunColor: "#fff6e8", exposure: 1.05 },
+  // Sims-style dollhouse in daylight
+  light: { bg: "#8b9a62", grass: "#8b9a62", floor: "#ebe4d6", grout: "#d9d0bf", wallExt: "#3c3d42", wallInt: "#d9d1c1", wallCap: "#2b2c30",
+          body: "#d5d7da", base: "#9a948a", metal: "#e2ddd3", wood: "#9a7453", fixL: 0.66,
+          labelBg: "rgba(255,255,255,.94)", labelInk: "#1c1d20", labelLine: "rgba(0,0,0,.08)", hemi: [1.45, "#e4ecff", "#7d8656"], sun: 3.0, sunColor: "#ffe4bf", exposure: 1.0 },
+  // same house, late afternoon
+  dark: { bg: "#5f6b45", grass: "#6e7b4e", floor: "#d9d0bf", grout: "#c6bca9", wallExt: "#36373c", wallInt: "#cbc2b1", wallCap: "#26272a",
+          body: "#c3c6ca", base: "#87817a", metal: "#d3cdc2", wood: "#8c6849", fixL: 0.6,
+          labelBg: "rgba(24,27,34,.9)", labelInk: "#e8eaee", labelLine: "rgba(255,255,255,.08)", hemi: [1.0, "#c9d3ef", "#5c6442"], sun: 2.6, sunColor: "#ffcf96", exposure: 0.88 },
 };
-let look = LOOK.dark;
+let look = LOOK.builder;
 // fixture body tint: keep the hue, drop most of the saturation, sit at the theme's lightness
 function calm(hex, L = look.fixL) {
   const c = new THREE.Color(hex), hsl = {}; c.getHSL(hsl);
@@ -94,7 +101,7 @@ function disposeObj(o) {
   o.traverse(c => {
     if (c.isInstancedMesh) c.dispose();
     const ms = Array.isArray(c.material) ? c.material : c.material ? [c.material] : [];
-    ms.forEach(m => { if (m.userData.shared) return; if (m.map) m.map.dispose(); m.dispose(); });
+    ms.forEach(m => { if (m.userData.shared) return; if (m.map && !m.map.userData.shared) m.map.dispose(); m.dispose(); });
     if (c.geometry && !c.geometry.userData.shared) c.geometry.dispose();
   });
 }
@@ -107,17 +114,17 @@ function createStage(host, { listeners = {}, bg = look.bg } = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = look.exposure;
   const el = renderer.domElement;
   Object.assign(el.style, { display: "block", width: "100%", height: "100%", touchAction: "none" });
   host.prepend(el);
   const scene = new THREE.Scene(); scene.background = new THREE.Color(bg);
-  scene.fog = new THREE.Fog(bg, 70, 170);
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500);
+  scene.fog = new THREE.Fog(bg, look.grass ? 140 : 70, look.grass ? 300 : 170);
+  const camera = new THREE.PerspectiveCamera(look.grass ? 28 : 38, 1, 0.1, 600);   // narrower lens = flatter, dollhouse look
   scene.add(new THREE.HemisphereLight(look.hemi[1], look.hemi[2], look.hemi[0]));
-  const sun = new THREE.DirectionalLight("#fff6e8", look.sun);
-  sun.position.set(-22, 48, 26); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow, { bias: -0.0004, normalBias: 0.03, radius: 4 });
+  const sun = new THREE.DirectionalLight(look.sunColor, look.sun);
+  sun.position.set(-34, 40, 18); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);   // low-ish sun: long shadows
+  Object.assign(sun.shadow, { bias: -0.0004, normalBias: 0.03, radius: 5 });
   Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 120 });
   scene.add(sun);
   const fill = new THREE.DirectionalLight("#e8eeff", look.sun * 0.35); fill.position.set(30, 25, -20); scene.add(fill);
@@ -146,10 +153,55 @@ function createStage(host, { listeners = {}, bg = look.bg } = {}) {
 function aimCamera(stage, size, mode = "3d") {
   const span = Math.max(size.w, size.d);
   if (mode === "top") stage.camera.position.set(0, span * 1.75, 0.01);
+  else if (mode === "diorama") {   // three-quarter view from the front-left corner, like a dollhouse
+    const d = span * 0.6 / Math.tan(THREE.MathUtils.degToRad(stage.camera.fov) / 2);
+    stage.camera.position.set(-0.56, 0.6, 0.58).normalize().multiplyScalar(d * 1.05);
+  }
   else stage.camera.position.set(-span * 0.15, span * 0.95, span * 1.15);
   stage.controls.target.set(0, 0, 0); stage.controls.update();
 }
-function addFloor(world, size) {
+// Small canvas textures, drawn once per palette
+const TEX = new Map();
+function canvasTex(key, px, draw) {
+  let t = TEX.get(key);
+  if (!t) {
+    const c = document.createElement("canvas"); c.width = c.height = px; draw(c.getContext("2d"), px, rng(key));
+    t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8;
+    t.userData.shared = true; TEX.set(key, t);
+  }
+  return t;
+}
+const shade = (hex, k) => "#" + new THREE.Color(hex).offsetHSL(0, 0, k).getHexString();
+// 2 ft vinyl tiles with grout; one texture = 4 × 4 tiles (8 ft)
+const tileTex = () => canvasTex("tile" + look.floor, 512, (g, n, r) => {
+  g.fillStyle = look.grout; g.fillRect(0, 0, n, n);
+  const t = n / 4;
+  for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) { g.fillStyle = shade(look.floor, (r() - 0.5) * 0.035); g.fillRect(a * t + 2, b * t + 2, t - 4, t - 4); }
+});
+// grass: base color with thousands of short blades in lighter and darker greens
+const grassTex = () => canvasTex("grass" + look.grass, 256, (g, n, r) => {
+  g.fillStyle = look.grass; g.fillRect(0, 0, n, n);
+  for (let i = 0; i < 2600; i++) {
+    g.strokeStyle = shade(look.grass, (r() - 0.5) * 0.12); g.lineWidth = 1 + r();
+    const x = r() * n, y = r() * n; g.beginPath(); g.moveTo(x, y); g.lineTo(x + (r() - 0.5) * 3, y - 2 - r() * 4); g.stroke();
+  }
+});
+const concreteTex = () => canvasTex("concrete", 256, (g, n, r) => {
+  g.fillStyle = "#a8a49c"; g.fillRect(0, 0, n, n);
+  for (let i = 0; i < 1800; i++) { g.fillStyle = `rgba(${r() < 0.5 ? "0,0,0" : "255,255,255"},${0.03 + r() * 0.05})`; g.fillRect(r() * n, r() * n, 1 + r() * 2, 1 + r() * 2); }
+});
+function addFloor(world, size, diorama = false) {
+  if (diorama) {
+    const tex = tileTex().clone(); tex.userData.shared = false; tex.needsUpdate = true; tex.repeat.set(size.w / 8, size.d / 8);
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(size.w, size.d), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55 }));
+    floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; world.add(floor);
+    // the building sits on a slab a little above the lawn
+    const slab = new THREE.Mesh(UNIT, mat("#b9b2a5", { r: 0.95 })); slab.scale.set(size.w + 1.2, 0.35, size.d + 1.2); slab.position.y = -0.18; slab.receiveShadow = true; world.add(slab);
+    const g = grassTex().clone(); g.userData.shared = false; g.needsUpdate = true; g.repeat.set(60, 60);
+    const lawn = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ map: g, roughness: 1 }));
+    lawn.rotation.x = -Math.PI / 2; lawn.position.y = -0.34; lawn.receiveShadow = true; world.add(lawn);
+    return;
+  }
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(size.w, size.d), new THREE.MeshStandardMaterial({ color: look.floor, roughness: 0.92 }));
   floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; world.add(floor);
   const n = Math.ceil(Math.max(size.w, size.d) / 2);
@@ -338,7 +390,7 @@ function freezer(g, L, T, H, r, col) {
   const l2 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, T / 4, false); l2.rotation.x = 0.12;
 }
 function wine(g, L, T, H, dbl, r, col) {
-  const wood = mat("#8a6a4c", { r: 0.8 }), dark = mat("#4a3826", { r: 0.85 });
+  const wood = mat(look.wood || "#8a6a4c", { r: 0.75 }), dark = mat("#4a3826", { r: 0.85 });
   part(g, L, 0.3, T, dark, 0, 0.15, 0);
   part(g, 0.15, H, T, wood, -L / 2 + 0.075, H / 2, 0); part(g, 0.15, H, T, wood, L / 2 - 0.075, H / 2, 0);
   const back = dbl ? 0 : -T / 2 + 0.06;
@@ -359,8 +411,8 @@ function wine(g, L, T, H, dbl, r, col) {
 }
 function counter(g, L, T, H, r, col) {
   const dark = mat("#2a2e35", { r: 0.5 });
-  part(g, L, H - 0.15, T, mat(col), 0, (H - 0.15) / 2, 0);
-  part(g, L + 0.25, 0.15, T + 0.25, mat("#e4dccd", { r: 0.5 }), 0, H - 0.075, 0);
+  part(g, L, H - 0.15, T, mat(look.wood || col, { r: 0.7 }), 0, (H - 0.15) / 2, 0);
+  part(g, L + 0.25, 0.15, T + 0.25, mat("#ece6da", { r: 0.45 }), 0, H - 0.075, 0);
   part(g, L - 0.4, 0.4, 0.05, mat("#141820"), 0, 0.2, T / 2 + 0.01, false);
   const rx = -L / 4;
   part(g, 1.3, 0.45, 1.0, dark, rx, H + 0.225, 0);                                    // register
@@ -409,7 +461,8 @@ function newsStand(g, L, T, H, r, col) {
   items(g, list);
 }
 function backRoom(g, L, T, r) {
-  part(g, L, 0.04, T, mat(look.base, { r: 0.95 }), 0, 0.02, 0, false);
+  const fl = part(g, L, 0.04, T, look.grass ? new THREE.MeshStandardMaterial({ map: concreteTex(), roughness: 0.95 }) : mat(look.base, { r: 0.95 }), 0, 0.02, 0, false);
+  fl.receiveShadow = true;
   if (L < 3.6 || T < 3.6) return 0.04;
   const pallet = mat("#a08463", { r: 0.9 }), list = [];
   const spots = [[-L / 2 + 1.7, -T / 2 + 1.7], [L / 2 - 1.7, -T / 2 + 1.7], [-L / 2 + 1.7, T / 2 - 1.7]].slice(0, L * T > 60 ? 3 : 1);
@@ -474,7 +527,7 @@ const wallMaterial = on => new THREE.MeshStandardMaterial({ color: on ? "#f0c040
 // ── 3D viewer (used by every floor map in the app) ────────────────────────────
 export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#141005", theme = "dark", onSelectZone } = {}) {
   look = LOOK[theme] || LOOK.dark;
-  const LABEL_H = 0.044; // label height as a share of the view (≈ 20–24px on a phone card)
+  const LABEL_H = 0.03, LABEL_PX = 21; // placeholder share of the view; declutter() sets the real size from LABEL_PX
   const st = toFeet(layout), { size } = st, raycaster = new THREE.Raycaster(), ndc = new THREE.Vector2();
   let down = null;
   const stage = createStage(host, {
@@ -495,7 +548,7 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
       },
     },
   });
-  addFloor(stage.world, size);
+  addFloor(stage.world, size, true);
   const byKey = {}, wallMeshes = [], wallH = [];
   st.zones.forEach(z => {
     const m = buildFixture(z, size), top = m.userData.top;
@@ -505,9 +558,15 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
     if (z.label && z.tappable) { label = makeLabel(z.label, false, true, accent, accentInk, LABEL_H); label.position.set(m.position.x, top + 0.9, m.position.z); stage.world.add(label); }
     byKey[z.key] = { m, z, label };
   });
+  // dollhouse walls: dark outside, light inside, dark cut top (box faces: +x −x +y −y +z −z)
+  const ext = mat(look.wallExt, { r: 0.9 }), int = mat(look.wallInt, { r: 0.92 }), cap = mat(look.wallCap, { r: 0.8 });
   st.walls.forEach((w, i) => {
-    const m = new THREE.Mesh(UNIT, wallMaterial(false)); m.castShadow = true; m.receiveShadow = true;
-    placeWall(m, w, size, WALL_H); stage.world.add(m); wallMeshes[i] = m;
+    const m = new THREE.Mesh(UNIT, ext); m.castShadow = true; m.receiveShadow = true;
+    placeWall(m, w, size, WALL_H);
+    const nx = Math.sin(m.rotation.y), nz = Math.cos(m.rotation.y);          // the wall's +z side
+    const inward = nx * -m.position.x + nz * -m.position.z > 0;             // does it face the middle of the store?
+    m.material = [ext, ext, cap, cap, inward ? int : ext, inward ? ext : int];
+    stage.world.add(m); wallMeshes[i] = m;
   });
   // pin: a map-pin shape over the fixture, a soft halo on it and a pulsing ring on the floor
   const pinMat = new THREE.MeshStandardMaterial({ color: accent, emissive: new THREE.Color(accent), emissiveIntensity: 0.35, roughness: 0.4 });
@@ -520,7 +579,9 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
   glow.visible = false; stage.world.add(glow);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 64), new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; ring.visible = false; stage.world.add(ring);
-  aimCamera(stage, size);
+  aimCamera(stage, size, "diorama");
+  const homeDist = stage.camera.position.length();
+  requestAnimationFrame(() => declutter());
 
   let pin = null, fly = null;
   // zoom toward the pinned fixture, keeping the current viewing angle; any user drag cancels it
@@ -528,8 +589,8 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
   function flyTo(o) {
     const { camera, controls } = stage;
     // keep most of the store in view: ease the camera part of the way toward the pin and zoom in a little
-    const dist = Math.max(size.w, size.d) * 1.25;
-    const tgt = new THREE.Vector3(o.m.position.x * 0.45, 0, o.m.position.z * 0.45);
+    const dist = homeDist * 0.9;
+    const tgt = new THREE.Vector3(o.m.position.x * 0.35, 0, o.m.position.z * 0.35);
     const dir = camera.position.clone().sub(controls.target).normalize();
     if (dir.y < 0.7) { dir.y = 0.7; dir.normalize(); } // stay high enough to see over the shelves
     fly = { tgt, pos: tgt.clone().addScaledVector(dir, dist) };
@@ -581,16 +642,18 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
     const placed = [];
     for (const o of list) {
       const l = o.label; _v.copy(l.position).project(camera);
+      const want = LABEL_PX * (o.z.key === pin ? 1.2 : 1) / (f * H), k = want / l.scale.y;
+      if (Math.abs(k - 1) > 0.01) l.scale.set(l.scale.x * k, want, 1);
       const h = l.scale.y * f * H, w = h * l.scale.x / l.scale.y;
       const x = (_v.x + 1) / 2 * W, y = (1 - _v.y) / 2 * H;
       const box = { x: x - w / 2 - 2, y: y - h / 2 - 2, w: w + 4, h: h + 4 };
       const off = _v.z > 1 || x < -w || x > W + w || y < -h || y > H + h;
       const hit = placed.some(p => box.x < p.x + p.w && box.x + box.w > p.x && box.y < p.y + p.h && box.y + box.h > p.y);
-      l.visible = o.z.key === pin || (!off && !hit && h > 7);
+      l.visible = o.z.key === pin || (!byKey[pin] && !off && !hit && h > 7);
       if (l.visible) placed.push(box);
     }
   }
-  return { setPin, top: () => { fly = null; aimCamera(stage, size, "top"); }, angled: () => { fly = null; aimCamera(stage, size, "3d"); }, dispose: () => stage.dispose() };
+  return { setPin, top: () => { fly = null; aimCamera(stage, size, "top"); }, angled: () => { fly = null; aimCamera(stage, size, "diorama"); }, dispose: () => stage.dispose() };
 }
 
 // ── developer Store Builder ───────────────────────────────────────────────────
@@ -689,7 +752,7 @@ const MARKUP = `
 <div class="toast" data-r="toast" hidden></div>`;
 
 export function mountBuilder(host, layout, { onSave }) {
-  look = LOOK.dark; // the builder always uses the dark workspace
+  look = LOOK.builder; // the builder keeps its own workspace look
   if (!document.querySelector("style[data-sb]")) { const s = document.createElement("style"); s.dataset.sb = "1"; s.textContent = CSS; document.head.appendChild(s); }
   host.classList.add("sb"); host.innerHTML = MARKUP;
   const $ = n => host.querySelector(`[data-r="${n}"]`);

@@ -423,14 +423,15 @@ function FloorPlan3D({layout,pinZone,onSelectZone,accent,readonly,theme}){
   return(
     <div ref={ref} style={{width:"100%",aspectRatio:`${layout.size.w} / ${layout.size.d}`,minHeight:240,position:"relative",background:MAP_LOOK[theme].bg}}>
       {failed&&<div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,color:"var(--muted)",textAlign:"center",padding:16}}>The 3D map couldn't load. Switch back to 2D.</div>}
+      <div aria-hidden style={{position:"absolute",inset:0,pointerEvents:"none",background:"radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(20,18,10,.28) 100%)"}}/>
     </div>
   );
 }
 
 // Map palette per theme — keep in step with LOOK in store3d.js
 const MAP_LOOK={
-  dark:{bg:"#14171d",floor:"#1e222a",grid:"#262a32",wall:"#5d6573",fixL:0.31,stroke:"rgba(0,0,0,.35)",ink:"#c9ced6",halo:"#1e222a"},
-  light:{bg:"#e9e8e3",floor:"#f6f5f1",grid:"#ebe9e3",wall:"#a9a397",fixL:0.75,stroke:"rgba(60,50,30,.26)",ink:"#3f4247",halo:"#f6f5f1"},
+  dark:{bg:"#5f6b45",floor:"#d9d0bf",grid:"#cdc3b1",wall:"#36373c",fixL:0.7,stroke:"rgba(40,30,10,.3)",ink:"#3a3a3c",halo:"#e6ddcc"},
+  light:{bg:"#8b9a62",floor:"#ebe4d6",grid:"#ddd4c3",wall:"#3c3d42",fixL:0.76,stroke:"rgba(60,50,30,.26)",ink:"#3f4247",halo:"#f1ebdf"},
 };
 // Follow the app's light/dark switch (it lives on <html data-theme>)
 function useDocTheme(){
