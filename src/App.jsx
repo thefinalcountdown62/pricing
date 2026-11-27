@@ -97,6 +97,7 @@ const DEV_TABS=[{id:"settings",label:"Settings",icon:"settings"},{id:"items",lab
 const DEV_CARD={background:"var(--surface)",border:"1px solid var(--border)",borderRadius:16,padding:16,marginBottom:14,boxShadow:"var(--shadow)"};
 const DEV_TITLE={fontSize:15,fontWeight:700,color:"var(--text)",letterSpacing:"-0.01em",marginBottom:3};
 const DEV_DESC={fontSize:12.5,color:"var(--muted)",marginBottom:12,lineHeight:1.5};
+const UNDO_GREEN="color-mix(in srgb, var(--success) 62%, var(--surface))"; // muted success green for the undo flood
 const NOTIF_LABEL={fontSize:11,color:"var(--muted)",textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:7};
 const DEV_H={fontSize:14,fontWeight:700,color:"var(--text)",margin:"4px 2px 10px"};
 const DT={appBg:"var(--bg)",headerBg:"var(--bg)",cardBg:"var(--surface)",cardBorder:"var(--border)",accent:"#0b87a6",accentDim:"#0b87a622",accentText:"#ffffff",text:"var(--text)",subText:"var(--muted)",inputBg:"var(--surface-2)",inputBorder:"var(--border)",green:"#16a34a",red:"#e5484d"};
@@ -2304,7 +2305,7 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
               // undone: green floods out from the button, a check pops in, then the card folds away
               <div key={entry.id} style={{display:"grid",gridTemplateRows:fx?.phase==="leave"?"0fr":"1fr",opacity:fx?.phase==="leave"?0:1,transition:"grid-template-rows .42s var(--ease), opacity .3s var(--ease)"}}>
               <div style={{minHeight:0,overflow:"hidden"}}>
-              <div data-audit style={{...DEV_CARD,padding:"12px 14px",marginBottom:10,borderLeft:`3px solid ${tone}`,position:"relative",overflow:"hidden",animation:`fadeUp .3s var(--ease-out) ${i*0.03}s both`}}>
+              <div data-audit style={{...DEV_CARD,padding:"12px 14px",marginBottom:10,borderLeft:`3px solid ${fx&&fx.phase!=="error"?UNDO_GREEN:tone}`,transition:"border-color .35s var(--ease)",position:"relative",overflow:"hidden",animation:`fadeUp .3s var(--ease-out) ${i*0.03}s both`}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:6}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,minWidth:0}}>
                     <span style={{...TAG,background:`color-mix(in srgb, ${tone} 15%, transparent)`,color:tone,fontWeight:700}}>{entry.action==="added"?"Added":entry.action==="deleted"?"Deleted":"Edited"}</span>
@@ -2349,9 +2350,9 @@ function DevPage({isDev,onUnlock,onAuditRemove,managerPin="",onManagerPinChange,
                   </button>
                 )}
                 {fx&&fx.phase!=="error"&&(
-                  <div aria-hidden="true" style={{position:"absolute",inset:0,background:"var(--success)","--ux":fx.x,"--uy":fx.y,animation:"undoSpread .7s cubic-bezier(.45,0,.2,1) both"}}>
-                    <span style={{position:"absolute",left:"50%",top:"50%",width:56,height:56,margin:"-28px 0 0 -28px",borderRadius:"50%",background:"#fff",color:"#1d8048",
-                      display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 24px rgba(0,0,0,.2)",animation:"checkBounce .75s ease-out .38s both"}}>
+                  <div aria-hidden="true" style={{position:"absolute",inset:0,background:UNDO_GREEN,"--ux":fx.x,"--uy":fx.y,animation:"undoSpread .7s cubic-bezier(.45,0,.2,1) both"}}>
+                    <span style={{position:"absolute",left:"50%",top:"50%",width:56,height:56,margin:"-28px 0 0 -28px",borderRadius:"50%",background:"var(--surface)",color:"var(--success)",
+                      display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 14px rgba(0,0,0,.12)",animation:"checkBounce .75s ease-out .38s both"}}>
                       <Icon name="check" size={30} stroke={3}/>
                     </span>
                   </div>
