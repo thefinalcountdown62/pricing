@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback, createContext, useContext, Component } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo, createContext, useContext, Component } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { layoutFeet, findDoor, routeTo, arrowsAlong } from "./route.js";
 
 // ── Supabase ───────────────────────────────────────────────────────────────────
 const SUPABASE_URL = "https://tfetbksdzbvxnahyxfad.supabase.co";
@@ -471,6 +472,13 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
   const acc=accent||"#f2c14e";
   const W=540, H=Math.round(540*layout.size.d/layout.size.w);
   const px=x=>x/100*W, py=y=>y/100*H, pw=w=>w/100*W, ph=h=>h/100*H;
+  // entrance + walking route (feet → svg units)
+  const fx=x=>x/layout.size.w*W, fz=z=>z/layout.size.d*H;
+  const {door,route}=useMemo(()=>{
+    const st=layoutFeet(layout),d=findDoor(st);
+    const path=d&&pinKey?routeTo(st,pinKey,d):null;
+    return {door:d,route:path?{path,arrows:arrowsAlong(path)}:null};
+  },[layout,pinKey]);
   return(
     <div data-no-swipe style={{position:"relative",width:"100%",borderRadius:14,overflow:"hidden",background:L.bg,border:"1px solid var(--border)"}}>
       <div onClick={e=>e.stopPropagation()} role="tablist" aria-label="Map view" style={{position:"absolute",top:8,right:8,zIndex:3,display:"flex",padding:3,gap:2,borderRadius:10,
@@ -486,7 +494,9 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
       {mode==="3d"?<FloorPlan3D layout={layout} pinZone={pinKey} onSelectZone={onSelectZone} accent={acc} readonly={readonly} theme={theme}/>:
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block"}}>
         <defs>
-          <style>{`@keyframes pinPulse{0%{opacity:.55;transform:scale(1)}100%{opacity:0;transform:scale(1.25)}}.pin-ring{transform-box:fill-box;transform-origin:center;animation:pinPulse 1.8s var(--ease-out) infinite}`}</style>
+          <style>{`@keyframes pinPulse{0%{opacity:.55;transform:scale(1)}100%{opacity:0;transform:scale(1.25)}}.pin-ring{transform-box:fill-box;transform-origin:center;animation:pinPulse 1.8s var(--ease-out) infinite}
+            @keyframes routeDash{to{stroke-dashoffset:-28}}.route-line{animation:routeDash 1.1s linear infinite}
+            @keyframes chevPulse{0%,100%{opacity:.35}35%{opacity:1}}.route-chev{animation:chevPulse 1.6s var(--ease) infinite}`}</style>
           <pattern id="mapgrid" width={W/layout.size.w*2} height={H/layout.size.d*2} patternUnits="userSpaceOnUse">
             <path d={`M ${W/layout.size.w*2} 0 L 0 0 0 ${H/layout.size.d*2}`} fill="none" stroke={L.grid} strokeWidth={1}/>
           </pattern>
@@ -512,6 +522,36 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
         {layout.walls.map((wl,i)=>(
           <line key={i} x1={px(wl.x1)} y1={py(wl.y1)} x2={px(wl.x2)} y2={py(wl.y2)} stroke={L.wall} strokeWidth={Math.max(3.5,0.45/layout.size.w*W)} strokeLinecap="round" style={{pointerEvents:"none"}}/>
         ))}
+        {/* Entrance: threshold, two door-swing arcs and a label just outside */}
+        {door&&(()=>{
+          const cx=fx(door.x),cz=fz(door.z),half=(door.horiz?fx(door.width):fz(door.width))/2,r=half*0.95;
+          const rot=Math.atan2(door.nx,door.nz)*180/Math.PI;   // local +y (down) points into the store
+          return(
+            <g transform={`translate(${cx} ${cz}) rotate(${-rot})`} style={{pointerEvents:"none"}}>
+              <rect x={-half} y={-2} width={half*2} height={4} rx={2} fill={L.halo} stroke={L.wall} strokeWidth={1}/>
+              <path d={`M ${-half} 0 L ${-half} ${r} A ${r} ${r} 0 0 0 ${-half+r} 0`} fill="none" stroke={L.wall} strokeWidth={1.2} strokeDasharray="3 3" opacity={0.7}/>
+              <path d={`M ${half} 0 L ${half} ${r} A ${r} ${r} 0 0 1 ${half-r} 0`} fill="none" stroke={L.wall} strokeWidth={1.2} strokeDasharray="3 3" opacity={0.7}/>
+            </g>
+          );
+        })()}
+        {/* Route: soft band + moving dashes + chevrons that pulse from the door toward the fixture */}
+        {route&&(()=>{
+          const d=route.path.map((p,i)=>`${i?"L":"M"} ${fx(p.x).toFixed(1)} ${fz(p.z).toFixed(1)}`).join(" ");
+          return(
+            <g style={{pointerEvents:"none"}}>
+              <path d={d} fill="none" stroke={acc} strokeOpacity={0.18} strokeWidth={10} strokeLinecap="round" strokeLinejoin="round"/>
+              <path className="route-line" d={d} fill="none" stroke={acc} strokeWidth={2.2} strokeDasharray="8 6" strokeLinecap="round" strokeLinejoin="round"/>
+              {route.arrows.map((a,i)=>(
+                <path key={i} className="route-chev" d="M -4 -6 L 4 0 L -4 6" fill="none" stroke={acc} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"
+                  transform={`translate(${fx(a.x).toFixed(1)} ${fz(a.z).toFixed(1)}) rotate(${(a.angle*180/Math.PI).toFixed(1)})`}
+                  style={{animationDelay:`${(a.s*0.11).toFixed(2)}s`}}/>
+              ))}
+              <circle cx={fx(route.path[0].x)} cy={fz(route.path[0].z)} r={5} fill={acc} stroke={L.halo} strokeWidth={2}/>
+            </g>
+          );
+        })()}
+        {door&&<text x={fx(door.x-door.nx*1.6)} y={fz(door.z-door.nz*1.6)+(door.nz<0?6:door.nz>0?-2:0)} textAnchor="middle" dominantBaseline="middle" fontSize={10.5} fontWeight={700}
+          fill={L.ink} stroke={L.halo} strokeWidth={3} paintOrder="stroke" style={{pointerEvents:"none",letterSpacing:"0.04em"}}>ENTRANCE</text>}
         {/* Labels: plain text with a soft halo, biggest fixtures first, never overlapping; the pinned one gets a pill */}
         {(()=>{
           const placed=[],out=[];

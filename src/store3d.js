@@ -1,6 +1,7 @@
 // Gil's Grocery — 3D floor map viewer + developer Store Builder.
 // Loaded on demand (dynamic import) so three.js only downloads when someone opens 3D.
 import * as THREE from "three";
+import { findDoor, routeTo, arrowsAlong } from "./route.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 
 // ── shared data helpers ───────────────────────────────────────────────────────
@@ -524,6 +525,43 @@ function animateWalls(meshes, walls, size, camera, mode, heights) {
 const wallMaterial = on => new THREE.MeshStandardMaterial({ color: on ? "#f0c040" : look.wall, roughness: 0.9,
   emissive: on ? new THREE.Color("#f0c040") : new THREE.Color(0), emissiveIntensity: on ? 0.25 : 0 });
 
+// ── entrance + route arrows (viewer) ──────────────────────────────────────────
+// Glass double door in the wall gap, a threshold and a mat outside. Built facing +z (into the store), then turned.
+function buildDoor(door, size) {
+  const g = new THREE.Group(), leaves = new THREE.Group(), W = door.width, H = 7.4;
+  const frame = mat("#2b2c30", { r: 0.5, m: 0.4 }), glass = mat("#cfe4ee", { o: 0.28, r: 0.05, m: 0.1 }), steel = mat("#c9ccd1", { m: 0.7, r: 0.3 });
+  part(g, W + 0.2, 0.08, 0.7, steel, 0, 0.04, 0, false);                                       // threshold
+  for (const sx of [-1, 1]) part(leaves, 0.22, H, 0.5, frame, sx * (W / 2 - 0.11), H / 2, 0);   // jambs
+  part(leaves, W, 0.35, 0.5, frame, 0, H - 0.17, 0);                                            // header
+  for (const sx of [-1, 1]) {
+    const cxl = sx * W / 4;
+    part(leaves, W / 2 - 0.3, H - 0.6, 0.06, glass, cxl, (H - 0.35) / 2, 0, false);
+    part(leaves, 0.08, H - 0.4, 0.12, frame, sx * 0.04, (H - 0.35) / 2, 0, false);              // meeting stiles
+    part(leaves, 0.07, 1.6, 0.14, steel, sx * 0.3, 3.4, 0.12, false);                            // pull handles
+  }
+  g.add(leaves); g.userData.leaves = leaves;
+  const mat1 = part(g, W + 0.6, 0.05, 2.2, mat("#3f4247", { r: 1 }), 0, 0.03, -1.6, false);    // door mat (outside)
+  mat1.receiveShadow = true;
+  part(g, W + 0.2, 0.06, 1.8, mat("#55595f", { r: 1 }), 0, 0.035, -1.6, false);
+  g.position.set(door.x - size.w / 2, 0, door.z - size.d / 2);
+  g.rotation.y = Math.atan2(door.nx, door.nz);   // local +z → into the store
+  return g;
+}
+// one chevron, lying flat, pointing along +x
+const CHEVRON = (() => {
+  const sh = new THREE.Shape([[0.42, 0], [-0.18, 0.55], [-0.5, 0.55], [0.1, 0], [-0.5, -0.55], [-0.18, -0.55]].map(([x, y]) => new THREE.Vector2(x, y)));
+  const geo = new THREE.ShapeGeometry(sh); geo.rotateX(-Math.PI / 2); geo.userData.shared = true; return geo;
+})();
+function buildArrows(points, size, color) {
+  const g = new THREE.Group();
+  points.forEach(p => {
+    const m = new THREE.Mesh(CHEVRON, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+    m.scale.setScalar(1.8); m.position.set(p.x - size.w / 2, 0.05, p.z - size.d / 2); m.rotation.y = -p.angle;
+    m.userData.s = p.s; m.renderOrder = 5; g.add(m);
+  });
+  return g;
+}
+
 // ── 3D viewer (used by every floor map in the app) ────────────────────────────
 export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#141005", theme = "dark", onSelectZone } = {}) {
   look = LOOK[theme] || LOOK.dark;
@@ -579,6 +617,18 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
   glow.visible = false; stage.world.add(glow);
   const ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 64), new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide }));
   ring.rotation.x = -Math.PI / 2; ring.position.y = 0.03; ring.visible = false; stage.world.add(ring);
+  // entrance: from layout.door, or found as the gap in the outside wall
+  st.door = layout.door ? { x: layout.door.x / 100 * size.w, z: layout.door.y / 100 * size.d } : null;
+  const door = findDoor(st);
+  let doorObj = null, doorWall = -1, doorLabel = null, arrows = null;
+  if (door) {
+    doorObj = buildDoor(door, size); stage.world.add(doorObj);
+    // the door is cut away together with the wall it sits in
+    let bd = Infinity;
+    st.walls.forEach((w, i) => { const d = Math.min(Math.hypot(w.x1 - door.x, w.z1 - door.z), Math.hypot(w.x2 - door.x, w.z2 - door.z)); if (d < bd) { bd = d; doorWall = i; } });
+    doorLabel = makeLabel("Entrance", false, true, accent, accentInk, LABEL_H);
+    doorLabel.position.set(door.x - size.w / 2 - door.nx * 2.6, 0.6, door.z - size.d / 2 - door.nz * 2.6); stage.world.add(doorLabel);
+  }
   aimCamera(stage, size, "diorama");
   const homeDist = stage.camera.position.length();
   requestAnimationFrame(() => declutter());
@@ -586,13 +636,27 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
   let pin = null, fly = null;
   // zoom toward the pinned fixture, keeping the current viewing angle; any user drag cancels it
   stage.controls.addEventListener("start", () => { fly = null; });
-  function flyTo(o) {
+  function flyTo(o, path) {
     const { camera, controls } = stage;
-    // keep most of the store in view: ease the camera part of the way toward the pin and zoom in a little
+    if (path) {
+      // look from the entrance toward the item, high enough to see down the aisles, framing the whole walk
+      const xs = path.map(p => p.x - size.w / 2), zs = path.map(p => p.z - size.d / 2);
+      const tgt = new THREE.Vector3((Math.min(...xs) + Math.max(...xs)) / 2, 0, (Math.min(...zs) + Math.max(...zs)) / 2);
+      let hx = path[0].x - path[path.length - 1].x, hz = path[0].z - path[path.length - 1].z;
+      const hl = Math.hypot(hx, hz) || 1; hx /= hl; hz /= hl;
+      // turn a little off the straight line so the view keeps some depth
+      const tw = 0.35, rx = hx * Math.cos(tw) - hz * Math.sin(tw), rz = hx * Math.sin(tw) + hz * Math.cos(tw);
+      const dir = new THREE.Vector3(rx * 0.5, 0.86, rz * 0.5).normalize();
+      const span = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs), 14);
+      const dist = Math.min(homeDist, (span * 0.75 + 10) / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+      fly = { tgt, pos: tgt.clone().addScaledVector(dir, dist) };
+      return;
+    }
+    // no route: ease part of the way toward the pin and zoom in a little
     const dist = homeDist * 0.9;
     const tgt = new THREE.Vector3(o.m.position.x * 0.35, 0, o.m.position.z * 0.35);
     const dir = camera.position.clone().sub(controls.target).normalize();
-    if (dir.y < 0.7) { dir.y = 0.7; dir.normalize(); } // stay high enough to see over the shelves
+    if (dir.y < 0.75) { dir.y = 0.75; dir.normalize(); }
     fly = { tgt, pos: tgt.clone().addScaledVector(dir, dist) };
   }
   function setLabel(o, on) {
@@ -607,12 +671,15 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
     pin = key;
     const o = byKey[key];
     marker.visible = glow.visible = ring.visible = !!o;
+    if (arrows) { stage.world.remove(arrows); arrows.traverse(c => c.material && c.material.dispose()); arrows = null; }
+    const path = o && door ? routeTo(st, key, door) : null;
+    if (path) { arrows = buildArrows(arrowsAlong(path), size, accent); stage.world.add(arrows); }
     if (o) {
       const h = Math.max(o.z.h, o.m.userData.top) + 0.1;
       glow.scale.set(o.z.w + 0.3, h, o.z.d + 0.3); glow.position.set(o.m.position.x, h / 2, o.m.position.z);
       ring.position.x = o.m.position.x; ring.position.z = o.m.position.z; ring.userData.r = Math.hypot(o.z.w, o.z.d) / 2 + 0.6;
       setLabel(o, true);
-      flyTo(o);
+      flyTo(o, path);
     }
   }
   stage.setFrame(t => {
@@ -629,6 +696,11 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
       const k = (t % 1800) / 1800, rr = ring.userData.r * (0.75 + k * 0.6);   // ring spreads out and fades, then repeats
       ring.scale.set(rr, rr, 1); ring.material.opacity = 0.55 * (1 - k);
     }
+    if (arrows) arrows.children.forEach(a => {   // a soft pulse runs from the door to the fixture
+      const k = 0.5 + 0.5 * Math.cos(a.userData.s * 0.9 - t / 240);
+      a.material.opacity = 0.35 + 0.6 * k * k; a.position.y = 0.05 + 0.08 * k * k;
+    });
+    if (doorObj && doorWall >= 0) { const k = Math.min(1, (wallH[doorWall] ?? WALL_H) / WALL_H); doorObj.userData.leaves.scale.y = Math.max(0.09, k); }
     if (++frame % 8 === 0) declutter();
   });
   // Hide labels that would overlap on screen: the pinned one wins, then the biggest fixtures
@@ -652,6 +724,7 @@ export function mountViewer(host, layout, { accent = "#f0c040", accentInk = "#14
       l.visible = o.z.key === pin || (!byKey[pin] && !off && !hit && h > 7);
       if (l.visible) placed.push(box);
     }
+    if (doorLabel) { const want = LABEL_PX * 0.9 / (f * H); doorLabel.scale.set(doorLabel.scale.x * want / doorLabel.scale.y, want, 1); }
   }
   return { setPin, top: () => { fly = null; aimCamera(stage, size, "top"); }, angled: () => { fly = null; aimCamera(stage, size, "diorama"); }, dispose: () => stage.dispose() };
 }
