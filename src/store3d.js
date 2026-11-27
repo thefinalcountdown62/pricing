@@ -236,6 +236,7 @@ export function styleOf(z) {
   const t = (z.key + " " + (z.label || "")).toLowerCase(), k = z.kind;
   if (k === "separator" || /rack_sep|separator/.test(t)) return "separator";
   if (k === "floor" || /back.?room|storage|stock.?room/.test(t)) return "backroom";
+  if (/ice.?chest|ice.?box|ice.?merch|bagged.?ice|^ice$|\bice\b(?!.?cream)/.test(t) && !/ice.?cream/.test(t)) return "icechest";
   if (/ice.?cream|freezer|frozen/.test(t) || k === "freezer") return "freezer";
   if (/cooler|beer.?case|beer.?wine|fridge|drink|soda/.test(t) || k === "cooler") return "cooler";
   if (/wine/.test(t)) return "wine";
@@ -390,6 +391,58 @@ function freezer(g, L, T, H, r, col) {
   const l1 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, -T / 4, false); l1.rotation.x = -0.12;
   const l2 = part(g, L - 0.1, 0.04, T / 2, frost, 0, ly, T / 4, false); l2.rotation.x = 0.12;
 }
+// Bagged-ice merchandiser: insulated white cabinet on a dark kick plate, solid front doors with chrome
+// pulls, a blue band carrying the ICE sign, a frosted lid and a vent grille at the back. Faces +z.
+const iceSignTex = (doors) => canvasTex("icesign" + doors, 512, (g, n) => {
+  const h = n / 4;   // the sign is 4:1, drawn in the top quarter of the square canvas
+  const grad = g.createLinearGradient(0, 0, 0, h); grad.addColorStop(0, "#5b93cc"); grad.addColorStop(1, "#3f77b3");
+  g.fillStyle = grad; g.fillRect(0, 0, n, h);
+  const flake = (x, y, s) => {
+    g.save(); g.translate(x, y); g.strokeStyle = "rgba(255,255,255,.9)"; g.lineWidth = s * 0.12; g.lineCap = "round";
+    for (let a = 0; a < 3; a++) { g.rotate(Math.PI / 3); g.beginPath(); g.moveTo(-s, 0); g.lineTo(s, 0);
+      for (const d of [-0.55, 0.55]) { g.moveTo(s * d, 0); g.lineTo(s * d + s * 0.25 * Math.sign(d), -s * 0.25); g.moveTo(s * d, 0); g.lineTo(s * d + s * 0.25 * Math.sign(d), s * 0.25); }
+      g.stroke(); }
+    g.restore();
+  };
+  const w = n / doors;
+  for (let i = 0; i < doors; i++) {
+    const cx = w * (i + 0.5);
+    g.fillStyle = "#ffffff"; g.font = `800 ${h * 0.62}px Inter, system-ui, sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+    g.fillText("ICE", cx, h * 0.54);
+    const tw = g.measureText("ICE").width;
+    flake(cx - tw / 2 - h * 0.28, h * 0.5, h * 0.16); flake(cx + tw / 2 + h * 0.28, h * 0.5, h * 0.16);
+  }
+});
+function iceChest(g, L, T, H) {
+  H = Math.min(H, 5.5);                    // a chest, not a walk-in: cap the height
+  const white = mat("#f1f3f4", { r: 0.45, m: 0.05 }), lid = mat("#e4e9ec", { r: 0.35 }), kick = mat("#3a3d42", { r: 0.7 });
+  const blue = mat("#4a82bf", { r: 0.5 }), chrome = mat("#cfd3d8", { m: 0.3, r: 0.25 }), seal = mat("#9aa3ab", { r: 0.8 });
+  const base = 0.35, band = Math.min(0.9, H * 0.18), lidH = 0.18;
+  part(g, L - 0.1, base, T - 0.1, kick, 0, base / 2, 0);                                        // kick plate
+  part(g, L, H - base - lidH, T, white, 0, base + (H - base - lidH) / 2, 0);                    // cabinet
+  part(g, L + 0.06, lidH, T + 0.06, lid, 0, H - lidH / 2, 0);                                   // lid
+  part(g, L - 0.3, 0.03, T - 0.3, mat("#f7fbfe", { r: 0.2 }), 0, H + 0.015, 0, false);          // frost on top
+  const by = H - lidH - band / 2 - 0.08;
+  part(g, L + 0.04, band, T + 0.04, blue, 0, by, 0);                                            // blue band (wraps the sides)
+  const doors = Math.max(1, Math.min(3, Math.round(L / 2)));
+  const sign = new THREE.Mesh(new THREE.PlaneGeometry(L - 0.12, band - 0.08), new THREE.MeshStandardMaterial({ map: (() => {
+    const t = iceSignTex(doors).clone(); t.userData.shared = false; t.needsUpdate = true; t.repeat.set(1, 0.25); t.offset.set(0, 0.75); return t; })(), roughness: 0.5 }));
+  sign.position.set(0, by, T / 2 + 0.035); g.add(sign);                                         // ICE sign on the band
+  const dh = by - band / 2 - base - 0.25, dy = base + 0.12 + dh / 2, dw = L / doors;
+  for (let i = 0; i < doors; i++) {
+    const cx = -L / 2 + dw * (i + 0.5);
+    part(g, dw - 0.14, dh, 0.08, white, cx, dy, T / 2 + 0.04);                                  // door, a little proud
+    part(g, dw - 0.06, 0.05, 0.06, seal, cx, dy + dh / 2 + 0.02, T / 2 + 0.03, false);          // gasket lines
+    part(g, dw - 0.06, 0.05, 0.06, seal, cx, dy - dh / 2 - 0.02, T / 2 + 0.03, false);
+    const hx = cx + (i % 2 ? -1 : 1) * (dw / 2 - 0.32);
+    part(g, 0.08, Math.min(1.4, dh * 0.45), 0.1, chrome, hx, dy + dh * 0.12, T / 2 + 0.16, false);   // pull handle
+    for (const yy of [dy + dh * 0.12 + 0.6, dy + dh * 0.12 - 0.6])
+      part(g, 0.06, 0.06, 0.12, chrome, hx, Math.min(yy, dy + dh / 2 - 0.1), T / 2 + 0.11, false);
+    part(g, 0.22, 0.32, 0.04, chrome, cx + (i % 2 ? 1 : -1) * (dw / 2 - 0.25), dy + dh * 0.3, T / 2 + 0.1, false);   // lock plate
+  }
+  for (let k = 0; k < 6; k++) part(g, L * 0.5, 0.05, 0.04, kick, 0, base + 0.3 + k * 0.14, -T / 2 - 0.02, false);  // rear vent slats
+  return H;
+}
 function wine(g, L, T, H, dbl, r, col) {
   const wood = mat(look.wood || "#8a6a4c", { r: 0.75 }), dark = mat("#4a3826", { r: 0.85 });
   part(g, L, 0.3, T, dark, 0, 0.15, 0);
@@ -490,6 +543,7 @@ export function buildFixture(z, size) {
     case "separator": part(m, L, H, Math.min(T, 0.25), mat(look.base, { m: 0.3 }), 0, H / 2, 0); break;
     case "backroom": top = backRoom(m, L, T, r); break;
     case "cooler": cooler(m, L, T, H, r, col); break;
+    case "icechest": top = iceChest(m, L, T, H); break;
     case "freezer": freezer(m, L, T, H, r, col); break;
     case "wine": wine(m, L, T, H, f.freestanding, r, col); break;
     case "counter": counter(m, L, T, H, r, col); top = H + 1.2; break;
