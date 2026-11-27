@@ -637,46 +637,112 @@ function cigarCase(g, L, T, H, r) {
   return H + 1.0;
 }
 
-// Checkout counter: kraft-brown panels in pale-wood frames, white top, pale baseboard. The customer side is
-// the back (-z) when the counter faces the clerk; the clerk side has an open shelf.
+// Checkout counter, modelled on a walk-through video of Gil's. From the customer side, left to right:
+// a lottery podium carrying the old "Gil's Grocery" sign, a gap to walk behind, then the main counter —
+// kraft panels in pale-pine frames with a white top, open pine shelving on the clerk side, and on top a
+// slanted stick display, the tiered candy crate, honey, a lottery mat, the register, a fruit basket and jars.
+// The clerk side is +z (the zone usually faces the back wall), the customer side -z.
+const gilsSignTex = () => canvasTex("gilssign", 512, (g, n, r) => {
+  g.fillStyle = "#e9e4d8"; g.fillRect(0, 0, n, n);
+  for (let i = 0; i < 90; i++) {                                           // weathered paint: worn streaks of bare wood
+    g.fillStyle = `rgba(${120 + r() * 40},${100 + r() * 30},${80 + r() * 20},${0.08 + r() * 0.18})`;
+    g.fillRect(r() * n, r() * n, 4 + r() * 60, 1 + r() * 4);
+  }
+  g.strokeStyle = "rgba(90,80,70,.35)"; g.lineWidth = 2;
+  for (let y = n * 0.12; y < n; y += n * 0.2) { g.beginPath(); g.moveTo(0, y); g.lineTo(n, y + (r() - 0.5) * 6); g.stroke(); }   // plank joins
+  g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillStyle = "#26221e"; g.font = `italic 700 ${n * 0.2}px Georgia, serif`; g.fillText("Gil's", n * 0.44, n * 0.2);
+  g.font = `800 ${n * 0.12}px Georgia, serif`; g.fillText("GROCERY", n * 0.55, n * 0.37);
+  g.fillRect(n * 0.3, n * 0.45, n * 0.5, 3);
+  g.font = `700 ${n * 0.07}px Georgia, serif`; g.fillText("DAILY", n * 0.5, n * 0.52); g.fillText("NEWSPAPERS", n * 0.5, n * 0.6);
+  g.fillStyle = "#8e2f2b"; g.font = `800 ${n * 0.085}px Georgia, serif`; g.fillText("S.S. PIERCE", n * 0.52, n * 0.71);
+  g.font = `italic 700 ${n * 0.08}px Georgia, serif`; g.fillText("Fancy GROCERIES", n * 0.5, n * 0.8);
+  g.fillStyle = "#26221e"; g.font = `700 ${n * 0.05}px Georgia, serif`; g.fillText("TEL. TUcker 7-5921", n * 0.5, n * 0.91);
+});
 function counter(g, L, T, H, r) {
-  const top = Math.min(H, 3.4), kraft = mat("#c9a57c", { r: 0.85 }), trim = mat("#e6d6b8", { r: 0.7 }), white = mat("#f3f1ec", { r: 0.45 });
-  const base = 0.35, body = top - 0.12;
-  part(g, L, body, T, kraft, 0, body / 2, 0);
-  part(g, L + 0.04, base, T + 0.04, trim, 0, base / 2, 0);                                      // baseboard
-  part(g, L + 0.3, 0.12, T + 0.25, white, 0, top - 0.06, -0.06);                                // white top, overhangs the customer side
-  // framed panels on the customer face (-z) and both ends
-  const frame = (len, cx, cz, ry) => {
-    const n = Math.max(1, Math.round(len / 3.6)), pw = len / n, gr = new THREE.Group(); gr.position.set(cx, 0, cz); gr.rotation.y = ry; g.add(gr);
-    part(gr, len, 0.16, 0.05, trim, 0, body - 0.1, 0, false);
-    part(gr, len, 0.16, 0.05, trim, 0, base + 0.08, 0, false);
-    for (let i = 0; i <= n; i++) part(gr, 0.16, body - base, 0.05, trim, -len / 2 + i * pw + (i === 0 ? 0.08 : i === n ? -0.08 : 0), base + (body - base) / 2, 0, false);
+  const top = Math.min(H, 3.3), kraft = mat("#c7a479", { r: 0.85 }), pine = mat("#e3cfa6", { r: 0.7 }), white = mat("#f4f2ed", { r: 0.4 });
+  const base = 0.3, tt = 0.12, cz = -T / 2, kz = T / 2;                       // customer face z, clerk face z
+  // framed kraft face: one panel per ~3 ft, pine rails and stiles; `face` is built facing +z, then turned
+  const face = (len, h, cx, z, ry) => {
+    const n = Math.max(1, Math.round(len / 3)), pw = len / n, gr = new THREE.Group(); gr.position.set(cx, 0, z); gr.rotation.y = ry; g.add(gr);
+    part(gr, len, h - base, 0.06, kraft, 0, base + (h - base) / 2, 0);
+    part(gr, len + 0.04, base, 0.1, pine, 0, base / 2, 0.01);
+    part(gr, len, 0.14, 0.1, pine, 0, h - 0.07, 0.01, false);
+    for (let i = 0; i <= n; i++) part(gr, 0.14, h - base, 0.1, pine, -len / 2 + i * pw + (i === 0 ? 0.07 : i === n ? -0.07 : 0), base + (h - base) / 2, 0.01, false);
   };
-  frame(L, 0, -T / 2 - 0.02, Math.PI);
-  frame(T, -L / 2 - 0.02, 0, -Math.PI / 2); frame(T, L / 2 + 0.02, 0, Math.PI / 2);
-  // signs taped to the customer face
-  plane(g, 0.75, 0.6, mat("#f7f6f2"), -L * 0.08, body * 0.62, -T / 2 - 0.05, 0, Math.PI);
-  plane(g, 0.55, 0.85, mat("#d9783a"), L * 0.32, body * 0.6, -T / 2 - 0.05, 0, Math.PI);
-  // clerk side: an open shelf recess
-  part(g, L - 1.2, body * 0.4, 0.04, mat("#7a6248", { r: 0.9 }), 0, base + body * 0.32, T / 2 + 0.005, false);
-  part(g, L - 1.2, 0.05, 0.3, white, 0, base + body * 0.3, T / 2 - 0.1, false);
-  // on top: register, card reader, a tiered wooden candy box with jars, honey jars, a donation jar
-  const dark = mat("#26292e", { r: 0.5 }), y = top;
-  const rx = L / 2 - 1.4;
-  part(g, 1.3, 0.42, 1.0, dark, rx, y + 0.21, 0.1);
-  const sc = part(g, 0.95, 0.65, 0.06, dark, rx, y + 0.78, -0.15); sc.rotation.x = -0.25;
-  const gl = part(g, 0.82, 0.52, 0.02, mat("#9cc6e8", { e: 0.3 }), rx, y + 0.78, -0.11, false); gl.rotation.x = -0.25;
-  part(g, 0.3, 0.2, 0.4, dark, rx - 1.0, y + 0.1, -T / 2 + 0.45);
-  const cx = -L / 2 + 2.2, wood = mat("#c79a5f", { r: 0.7 });
-  for (let s = 0; s < 3; s++) part(g, 1.6, 0.25 + s * 0.28, 0.32, wood, cx, y + (0.25 + s * 0.28) / 2, -T / 2 + 0.45 + s * 0.3);   // tiered candy box
+  const topSlab = (len, dep, cx, czz, y) => {
+    part(g, len, tt, dep, white, cx, y - tt / 2, czz);
+    const nose = new THREE.Mesh(CYL, white); nose.scale.set(tt, len, tt); nose.rotation.z = Math.PI / 2;   // rounded front edge
+    nose.position.set(cx, y - tt / 2, czz - dep / 2); g.add(nose);
+  };
+
+  // ── lottery podium (customer's left = +x here) ──
+  const pw = Math.min(2.7, L * 0.22), pd = Math.min(T - 0.2, 2.6), px = L / 2 - pw / 2, ph = top + 0.25, pz = cz + pd / 2;
+  face(pw, ph - tt, px, cz + 0.03, Math.PI);                                                  // customer face
+  face(pd, ph - tt, px - pw / 2 + 0.03, pz, -Math.PI / 2); face(pd, ph - tt, px + pw / 2 - 0.03, pz, Math.PI / 2);
+  topSlab(pw + 0.15, pd + 0.12, px, pz - 0.04, ph);
+  const sign = plane(g, pw * 0.72, pw * 0.8, texMat(gilsSignTex(), { r: 0.85 }), px, ph * 0.5, cz - 0.07, 0, Math.PI);
+  part(g, pw * 0.78, 0.12, 0.06, mat("#8a7d6c", { r: 0.8 }), px, sign.position.y + pw * 0.4 + 0.06, cz - 0.07, false);   // sign's top rail
+  part(g, 0.22, 0.2, 0.08, mat("#7d5a3a", { m: 0.3, r: 0.5 }), px, sign.position.y + pw * 0.4 + 0.2, cz - 0.08, false);  // ornate hanger
+  const dark = mat("#1f2226", { r: 0.5 });
+  part(g, 1.0, 0.25, 0.8, dark, px - 0.2, ph + 0.125, pz + 0.2);                                // lottery terminal
+  const scr = part(g, 0.9, 0.7, 0.08, dark, px - 0.2, ph + 0.6, pz + 0.55); scr.rotation.x = -0.35;
+  const sg = part(g, 0.78, 0.56, 0.02, mat("#8fb7d6", { e: 0.25 }), px - 0.2, ph + 0.6, pz + 0.6, false); sg.rotation.x = -0.35;
+  part(g, 0.9, 0.02, 0.7, mat("#2f6b4a", { r: 0.9 }), px + 0.55, ph + 0.01, pz, false);         // green mat
+
+  // ── main counter ──
+  const gap = Math.min(2.6, L * 0.2), mL = L - pw - gap, mx = -L / 2 + mL / 2, dep = T;
+  face(mL, top - tt, mx, cz + 0.03, Math.PI);                                                  // customer face
+  face(dep, top - tt, -L / 2 + 0.03, 0, -Math.PI / 2); face(dep, top - tt, mx + mL / 2 - 0.03, 0, Math.PI / 2);   // ends
+  topSlab(mL + 0.2, dep + 0.2, mx, -0.05, top);
+  // clerk side: open pine shelving, two shelves of stock
+  const nUp = Math.max(2, Math.round(mL / 2.6));
+  for (let i = 0; i <= nUp; i++) part(g, 0.14, top - tt - base, 0.14, pine, -L / 2 + 0.1 + i * (mL - 0.2) / nUp, base + (top - tt - base) / 2, kz - 0.1);
+  part(g, mL - 0.1, 0.14, 0.1, pine, mx, top - tt - 0.07, kz - 0.06, false);                   // rail under the top
+  part(g, mL - 0.1, base, 0.1, pine, mx, base / 2, kz - 0.08);                                  // kick
+  const stock = [];
+  for (const [sy, sd] of [[base + 0.02, dep - 0.35], [base + (top - base) * 0.48, dep - 0.5]]) {
+    part(g, mL - 0.2, 0.06, sd, pine, mx, sy, kz - sd / 2 - 0.05, false);
+    for (let x = -L / 2 + 0.3, k = 0; x < -L / 2 + mL - 0.4 && k < 40; k++) {
+      const w = 0.4 + r() * 0.6, h = 0.25 + r() * 0.45;
+      if (x + w > -L / 2 + mL - 0.2) break;
+      if (r() > 0.18) stock.push({ x: x + w / 2, y: sy + 0.03 + h / 2, z: kz - 0.2 - sd * 0.35, w, h, d: Math.min(0.9, sd * 0.6), ry: (r() - 0.5) * 0.15, c: pick(r, r() < 0.6 ? PAL.boxes : PAL.grocery) });
+      x += w + 0.06;
+    }
+  }
+  items(g, stock);
+
+  // on top, from the podium end to the register end
+  const y = top, edge = cz + 0.35, wood = mat("#d9bf8f", { r: 0.7 });
+  const sx = -L / 2 + mL - 0.75;                                                                // slanted stick display
+  part(g, 1.1, 0.5, 0.9, wood, sx, y + 0.25, edge + 0.25);
+  const sl = part(g, 1.1, 0.05, 0.95, wood, sx, y + 0.62, edge + 0.3); sl.rotation.x = 0.45;
+  const sticks = [];
+  for (let k = 0; k < 9; k++) sticks.push({ x: sx - 0.4 + (k % 5) * 0.2, y: y + 0.75 + (k > 4 ? 0.05 : 0), z: edge + 0.15 + (k > 4 ? 0.25 : 0), w: 0.1, h: 0.55, d: 0.1, rx: 0.35, c: "#e8d23c" });
+  items(g, sticks);
+  const cx = sx - 1.85;                                                                        // tiered candy crate with jars
+  for (let s = 0; s < 3; s++) part(g, 1.7, 0.22 + s * 0.26, 0.3, wood, cx, y + (0.22 + s * 0.26) / 2, edge - 0.1 + s * 0.3);
   const jars = [];
-  for (let s = 0; s < 3; s++) for (let k = 0; k < 4; k++) jars.push({ x: cx - 0.55 + k * 0.37, y: y + 0.25 + s * 0.28 + 0.14, z: -T / 2 + 0.45 + s * 0.3, w: 0.24, h: 0.26, d: 0.24, c: pick(r, PAL.candy) });
-  for (let k = 0; k < 3; k++) jars.push({ x: cx + 1.05 + k * 0.2, y: y + 0.2, z: -T / 2 + 0.5, w: 0.17, h: 0.4, d: 0.17, c: "#c98a2b" });   // honey
-  jars.push({ x: rx - 1.0, y: y + 0.22, z: 0.25, w: 0.3, h: 0.45, d: 0.3, c: "#e7e2d4" });                                             // donation jar
+  for (let s = 0; s < 3; s++) for (let k = 0; k < 4; k++)
+    jars.push({ x: cx - 0.6 + k * 0.4, y: y + 0.22 + s * 0.26 + 0.14, z: edge - 0.1 + s * 0.3, w: 0.26, h: 0.28, d: 0.26, c: pick(r, PAL.candy) });
+  for (let k = 0; k < 3; k++) jars.push({ x: cx + 1.05 + k * 0.2, y: y + 0.21, z: edge, w: 0.17, h: 0.42, d: 0.17, c: "#c98a2b" });   // honey
+  const rx = -L / 2 + 1.1;                                                                     // register end
+  jars.push({ x: rx + 0.35, y: y + 0.24, z: edge - 0.05, w: 0.3, h: 0.48, d: 0.3, c: "#9b2f2a" });   // red canister
+  jars.push({ x: rx + 0.85, y: y + 0.2, z: edge - 0.05, w: 0.28, h: 0.4, d: 0.28, c: "#ece6d6" });   // donation jar
   items(g, jars, CYL);
+  part(g, 1.8, 0.015, 1.1, mat("#3f5d8e", { r: 0.8 }), (cx + rx) / 2 + 0.3, y + 0.008, edge + 0.35, false);   // lottery mat
+  part(g, 1.15, 0.3, 0.95, dark, rx, y + 0.15, kz - 0.75);                                     // register
+  const kp = part(g, 0.9, 0.06, 0.45, mat("#3a3f46"), rx, y + 0.33, kz - 0.65, false); kp.rotation.x = 0.25;
+  part(g, 0.5, 0.22, 0.08, dark, rx, y + 0.47, kz - 1.05);                                      // customer display
+  part(g, 0.45, 0.04, 0.3, mat("#d7d9dc"), rx - 0.85, y + 0.05, kz - 0.7, false);               // calculator
+  part(g, 0.3, 0.18, 0.4, dark, rx + 0.55, y + 0.09, edge + 0.05);                              // card reader
+  const basket = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.34, 0.25, 12, 1, true), mat("#b78d55", { r: 0.9 }));
+  basket.scale.set(1.3, 1, 0.8); basket.position.set(rx + 0.2, y + 0.13, edge + 0.55); g.add(basket);
+  const fruit = [];
+  for (let k = 0; k < 7; k++) fruit.push({ x: rx + 0.2 + (r() - 0.5) * 0.7, y: y + 0.2 + r() * 0.06, z: edge + 0.55 + (r() - 0.5) * 0.35, w: 0.17, h: 0.17, d: 0.17, c: k % 3 ? "#e3cf47" : "#8db34a" });
+  items(g, fruit, new THREE.SphereGeometry(0.5, 8, 6));
   return top;
 }
-
 function wine(g, L, T, H, dbl, r, col) {
   const wood = mat(look.wood || "#8a6a4c", { r: 0.75 }), dark = mat("#4a3826", { r: 0.85 });
   part(g, L, 0.3, T, dark, 0, 0.15, 0);
