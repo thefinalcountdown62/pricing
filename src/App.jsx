@@ -3714,9 +3714,12 @@ function MoreTray({open,onClose,page,setPage,isDark,isDev}){
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         {items.map((it,k)=>{
           const on=page===it.id;
+          // an odd one out at the end spans the full row, laid out sideways, so the grid has no hole
+          const wide=items.length%2===1&&k===items.length-1;
           return(
             <button key={it.id} onClick={()=>{setPage(it.id);onClose();}} className="press"
-              style={{textAlign:"left",padding:14,borderRadius:16,cursor:"pointer",minHeight:104,display:"flex",flexDirection:"column",justifyContent:"space-between",gap:10,
+              style={{textAlign:"left",padding:14,borderRadius:16,cursor:"pointer",minHeight:wide?0:104,display:"flex",gap:wide?12:10,
+                ...(wide?{gridColumn:"1 / -1",flexDirection:"row",alignItems:"center"}:{flexDirection:"column",justifyContent:"space-between"}),
                 background:on?`${it.tone}14`:"var(--surface-2)",border:`1px solid ${on?it.tone+"55":"var(--border)"}`,
                 animation:`fadeUp .35s var(--ease-out) ${k*0.04}s both`}}>
               <span style={{width:36,height:36,borderRadius:11,display:"flex",alignItems:"center",justifyContent:"center",background:`${it.tone}1f`,color:it.tone}}><Icon name={it.icon} size={19}/></span>
